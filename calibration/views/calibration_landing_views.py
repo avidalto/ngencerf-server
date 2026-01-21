@@ -1028,3 +1028,38 @@ def import_job(request: Request) -> Response:
     logger.debug(
         f'Returning to {get_user_email(request)} from {get_caller_name()}(){get_elapsed_str(request)} - {json.dumps(response_validator.data)}')
     return Response(response_validator.data)
+
+
+@api_view(["GET"])
+def timeout_test(request: Request) -> Response:
+    """
+    Endpoint for testing client/server timeouts.
+
+    Query Params:
+        seconds (int, optional): Number of seconds to block before responding.
+    """
+    logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {request.query_params}')
+    raw_seconds = request.query_params.get("seconds", "30")
+
+    try:
+        seconds = int(raw_seconds)
+        if seconds < 0:
+            raise ValueError
+    except ValueError:
+        return Response(
+            {"error": "seconds must be a non-negative integer"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    logger.info(f"timeout_test(): sleeping for {seconds} seconds")
+
+    time.sleep(seconds)
+
+    return Response(
+        {
+            "message": "Sleep completed",
+            "seconds": seconds,
+        },
+        status=status.HTTP_200_OK,
+    )
+

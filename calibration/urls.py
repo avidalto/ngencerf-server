@@ -29,6 +29,7 @@ urlpatterns = [
     path('calibration/archive_jobs/', calibration_landing_views.archive_jobs, name="archiveJobs"),
     path('calibration/lock_jobs/', calibration_landing_views.lock_jobs, name="lockJobs"),
     path('calibration/clone_job/', calibration_landing_views.clone_job, name="cloneJob"),
+    path('calibration/timeout/', calibration_landing_views.timeout_test, name="timeout_test"),
 
     ##################################
     # Gage tab
