@@ -7,7 +7,6 @@ from collections import deque
 from datetime import timedelta
 from itertools import groupby
 from operator import attrgetter
-from typing import Dict
 
 import pandas as pd
 from django.db import transaction
@@ -32,6 +31,25 @@ from calibration.views.common import CerfException, get_job_description, find_va
 logger = logging.getLogger(__name__)
 
 BULK_CREATE_BATCH_SIZE = 1000  # Define a reasonable batch size
+
+
+def sanitize_metric_value(value) -> float | None:
+    """
+    Ensure metric values are JSON-safe later by preventing NaN/±Inf from ever
+    being stored in the DB. Return None for non-finite values.
+    """
+    if value is None:
+        return None
+
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    if not math.isfinite(f):
+        return None
+
+    return f
 
 
 def read_validation_output(validation_run: ValidationRun, failed_so_far: bool) -> None:
@@ -235,7 +253,7 @@ def process_validation_metrics(run: ValidationRun | CalibrationRun, metrics_file
             if not metric:
                 raise CerfException(f"Could not find metric '{metric_name}' in MetricEnum")
 
-            metric_value = float(value) if value is not None else float('nan')
+            metric_value = sanitize_metric_value(value)
 
             # Create the Metric object (ValidationMetrics or NWMRetrospectiveMetrics)
             metric_obj = MetricModel(
@@ -341,7 +359,7 @@ def process_iterations_for_all_workers(calibration_run: CalibrationRun) -> None:
     #     * Verifying that exactly one best iteration exists
     # ------------------------------------------------------------
     # Compute best_params_dict once, outside the loop
-    best_params_dict: Dict[str, float] = {}
+    best_params_dict: dict[str, float | None] = {}
 
     have_LSTM_flag = have_LSTM(calibration_run)
 
@@ -377,8 +395,9 @@ def process_iterations_for_all_workers(calibration_run: CalibrationRun) -> None:
             # Read the global best parameters into a dictionary
 
             df = pd.read_csv(global_best_params_file, names=['value', 'name', 'model'], skiprows=1)
-            best_params_dict: dict[str, float] = {
-                str(name): float(value)
+
+            best_params_dict = {
+                str(name): sanitize_metric_value(value)
                 for name, value in zip(df['name'], df['value'])
             }
 
@@ -476,7 +495,7 @@ def process_iterations_for_a_worker(
         calibration_run: CalibrationRun,
         worker_name: str,
         iterations: list[Iteration],
-        best_params_dict: Dict[str, float],
+        best_params_dict: dict[str, float | None],
         have_LSTM_flag: bool,
         params_lookup: dict[str, CalibrationParameter]
 ) -> None:
@@ -567,7 +586,7 @@ def process_iterations_for_a_worker(
         iteration_num = int(row['iteration'])
 
         row_dict: dict[str, float | None] = {
-            str(k): (float(v) if v is not None else None)
+            str(k): sanitize_metric_value(v)
             for k, v in row.items()
             if k != 'iteration'
         }
@@ -602,7 +621,7 @@ def process_iterations_for_a_worker(
 
             # Determine if best iteration
             params_row: dict[str, float | None] = {
-                str(k): (float(v) if v is not None else None)
+                str(k): sanitize_metric_value(v)
                 for k, v in row.items()
                 if k != 'iteration'
             }
@@ -695,8 +714,7 @@ def process_metrics_row_for_calibration(
         if not metric:
             raise CerfException(f"Could not find metric '{metric_name}'")
 
-        # Set metric_value to NaN if missing
-        metric_value = float(value) if value is not None else float('nan')
+        metric_value = sanitize_metric_value(value)
 
         metric_obj = IterationMetric(
             iteration=iteration,
@@ -741,7 +759,8 @@ def process_params_row(
         if not parameter:
             raise CerfException(f"Could not find parameter '{param_name}' referenced in params_iteration_file")
 
-        tuned_value = float(value) if value is not None else None
+        tuned_value = sanitize_metric_value(value)
+
         param_obj = IterationParameter(
             iteration=iteration,
             calibration_parameter=parameter,
@@ -779,7 +798,7 @@ def update_objective_function_values(metrics_iteration_file: str, calibration_ru
     # Iterate over rows in the DataFrame
     for _, row in metrics_df.iterrows():
         iteration_num = int(row['iteration'])  # type: ignore[arg-type]
-        obj_fun_val = row['objFunVal']
+        obj_fun_val = sanitize_metric_value(row['objFunVal'])
 
         # Retrieve the iteration object from the dictionary
         iteration = iterations_dict.get(iteration_num)
@@ -950,7 +969,7 @@ def parse_performance_metrics(file_path: str) -> PerformanceMetrics | None:
     return None
 
 
-def params_match_best(params_row: dict[str, float | None], best_params_dict: dict[str, float]) -> bool:
+def params_match_best(params_row: dict[str, float | None], best_params_dict: dict[str, float | None]) -> bool:
     """
     Determine whether a row of tuned parameters exactly matches the known global-best parameters.
 
@@ -958,9 +977,10 @@ def params_match_best(params_row: dict[str, float | None], best_params_dict: dic
     - Used only for GWO/PSO jobs. DDS never uses parameter matching.
     - best_params_dict comes from global_best_params_file.
     - A match requires:
-        1. Same number of parameters.
-        2. Same parameter names.
-        3. Values matching within floating-point tolerance.
+        1. The row contains all global-best parameters
+        2. Same parameter names (case-insensitive).
+        3. Values matching within floating-point tolerance,
+           treating None as an exact match to None.
     - This check is used for actual best-iteration selection in
       process_iterations_for_a_worker().
     """
@@ -968,18 +988,32 @@ def params_match_best(params_row: dict[str, float | None], best_params_dict: dic
     if not best_params_dict:
         return False
 
-    # Must have the exact same set of parameter names
-    if len(params_row) != len(best_params_dict):
+    # Normalize keys to avoid CSV header casing mismatches.
+    row = {k.lower(): v for k, v in params_row.items()}
+    best = {k.lower(): v for k, v in best_params_dict.items()}
+
+    # Strict: same parameter set size
+    if len(row) != len(best):
         return False
 
-    # Check that each parameter exists in best_params_dict and
-    # that its value matches within floating-point tolerance.
-    return all(
-        param_name in best_params_dict and math.isclose(
-            float(value),
-            best_params_dict[param_name],
-            rel_tol=1e-9,
-            abs_tol=0.0
-        )
-        for param_name, value in params_row.items()
-    )
+    # Strict: same parameter names
+    if row.keys() != best.keys():
+        return False
+
+    # For each global-best parameter:
+    # - Require it to exist in the row
+    # - Require its value to match (None must match None; floats within tolerance)
+    for name, b in best.items():
+        v = row[name]
+
+        # None matches None only.
+        if v is None or b is None:
+            if v is b:
+                continue
+            return False
+
+        # Float match within tolerance.
+        if not math.isclose(v, b, rel_tol=1e-9, abs_tol=0.0):
+            return False
+
+    return True

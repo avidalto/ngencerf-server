@@ -110,6 +110,51 @@ ensure_virtualenv() {
 }
 
 #=======================================================================
+# Function: check_aws_credentials_early
+#   - Uses AWS CLI (STS) for a fast sanity check
+#   - Skips if running in Docker
+#   - Skips if aws CLI is not installed
+#   - Fails startup if credentials are invalid/expired
+#   - Logs the resolved identity ARN on success
+#=======================================================================
+check_aws_credentials_early() {
+    # Skip in Docker.  We'll rely on the server check
+    if [ "$IN_DOCKER" = true ]; then
+        echo "Skipping AWS credential check (Docker environment)"
+        return 0
+    fi
+
+    # Skip if AWS CLI not installed
+    if ! command -v aws >/dev/null 2>&1; then
+        echo "Skipping AWS credential check (aws CLI not found)"
+        return 0
+    fi
+
+    echo "Checking AWS credentials (early STS sanity check)..."
+
+    if aws sts get-caller-identity \
+        --output json \
+        --cli-connect-timeout 3 \
+        --cli-read-timeout 3 \
+        >/dev/null 2>&1
+    then
+        IDENTITY=$(aws sts get-caller-identity --output text --query 'Arn' 2>/dev/null)
+        echo "AWS credentials OK ($IDENTITY)"
+        return 0
+    else
+        echo "ERROR: AWS credentials are missing, expired, or invalid"
+
+         # If this script is being sourced, don't kill the caller's shell.
+        if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+            return 2
+        fi
+
+        exit 2
+    fi
+}
+
+
+#=======================================================================
 # Function: run_manage_command
 #   - Temporarily un-redirect stdout/stderr for interactive output
 #   - Runs “python manage.py <args…>”
@@ -152,14 +197,26 @@ if [ "$1" == "activate" ]; then
     return 0
 fi
 
+check_aws_credentials_early
+echo
+echo --------------------------------------------------------
+
+
 #=======================================================================
-# Parse “--load-gages” flag (if present), then shift it away
+# Parse flags
+#   --load-gages
+#   auto_reload   (enables Django auto-reloader; disables --noreload)
 #=======================================================================
 LOAD_GAGE_DATA=false
+AUTO_RELOAD=false
+
 for arg in "$@"; do
   case $arg in
     --load-gages)
       LOAD_GAGE_DATA=true
+      ;;
+    auto_reload)
+      AUTO_RELOAD=true
       ;;
   esac
 done
@@ -662,7 +719,14 @@ if [ "$ASGI_FLAG" = "1" ] || [ "$PROD_FLAG" = "1" ]; then
             --config "$(dirname "$0")/gunicorn_conf.py"
 else
     echo "Launching Django development server (runserver)"
-    python "$cerfServer"/manage.py runserver 0.0.0.0:8000 --noreload
+
+    if [ "$AUTO_RELOAD" = true ]; then
+        echo "Auto-reload ENABLED"
+        python "$cerfServer"/manage.py runserver 0.0.0.0:8000
+    else
+        echo "Auto-reload DISABLED (--noreload)"
+        python "$cerfServer"/manage.py runserver 0.0.0.0:8000 --noreload
+    fi
 fi
 
 if [ -n "${CERF_VENV}" ]; then

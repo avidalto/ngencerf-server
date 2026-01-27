@@ -10,14 +10,11 @@ from cerfServer.settings import LOGGING
 
 print('Loading local settings from', __name__)
 
-# Use fully open ALLOWED_HOSTS because ParallelWorks SSH tunnel connections 
+# Use fully open ALLOWED_HOSTS because ParallelWorks SSH tunnel connections
 # come from arbitrary private IPs
 # FIXME: Use stricter ALLOWED_HOSTS rules if possible in the future
 # ALLOWED_HOSTS = ['.localhost', '127.0.0.1']
 ALLOWED_HOSTS = ['*']
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
 
 # SQL logging
 LOGGING['loggers']['django.db.backends']['level'] = 'DEBUG'

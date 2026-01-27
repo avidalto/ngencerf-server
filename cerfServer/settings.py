@@ -24,6 +24,7 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = str(os.getenv('DJANGO_DEBUG', 'true')).lower() == 'true'
 
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
@@ -340,7 +341,7 @@ LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
 
-    # Root Logger: Sends everything to the console
+    # Root Logger: Sends everything to the console and file
     'root': {
         'handlers': ['console', 'file_dev'],
         'level': 'DEBUG'
@@ -408,11 +409,6 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,  # Prevents these logs from reaching the root logger (avoids duplication)
         },
-        # 'createInput': {
-        #     'handlers': ['console'],
-        #     'level': 'INFO',
-        #     'propagate': False,
-        # },
         'django_dbconn_retry': {
             'handlers': ['console', 'file_dev'],
             'level': 'DEBUG',
@@ -438,7 +434,7 @@ LOGGING = {
             'handlers': ['console', 'file_dev'],
             'level': 'DEBUG',
             'propagate': False,  # Prevents these logs from reaching the root logger (avoids duplication)
-        },
+        }
     }
 }
 

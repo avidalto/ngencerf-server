@@ -145,29 +145,36 @@ def check_http_error(http_status: int, response: str, content_type: str | None =
 
 def _print_validation_errors(errors: dict | list, prefix: str = "  ") -> None:
     """
-    Recursively prints validation errors, handling both field-specific and nested errors.
+    Print only leaf-level validation messages, with a single heading.
+
+
+    Examples of leaf nodes:
+      - {"0": ["Invalid module name ..."]}  -> prints "data.modules.0: Invalid module name ..."
+      - {"field": "This field is required."} -> prints "field: This field is required."
     """
     print("Validation errors:")
-    if isinstance(errors, dict):
-        for field, error_list in errors.items():
-            # Handle nested dictionaries
-            if isinstance(error_list, dict):
-                _print_validation_errors(error_list, prefix=f"{prefix}{field}.")
-            # Handle lists of errors
-            elif isinstance(error_list, list):
-                for error in error_list:
-                    # Handle nested error objects like ErrorDetail
-                    if isinstance(error, dict):
-                        _print_validation_errors(error, prefix=f"{prefix}{field}.")
-                    else:
-                        print(f"{prefix}{field}: {error}")
-            else:
-                print(f"{prefix}{field}: {error_list}")
-    elif isinstance(errors, list):
-        for error in errors:
-            print(f"{prefix}{error}")
-    else:
-        print(f"{prefix}{errors}")
+
+    def _walk(node, path: str) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                new_path = f"{path}.{key}" if path else str(key)
+                _walk(value, new_path)
+            return
+
+        if isinstance(node, list):
+            # If this is a leaf list (strings / scalars), print them.
+            # If it's a list of dicts/lists, recurse into each item.
+            for item in node:
+                if isinstance(item, (dict, list)):
+                    _walk(item, path)
+                else:
+                    print(f"{prefix}{path}: {item}")
+            return
+
+        # Scalar leaf
+        print(f"{prefix}{path}: {node}")
+
+    _walk(errors, "")
 
 
 def _pretty_print_json(response: str, suppress_html: bool = False):

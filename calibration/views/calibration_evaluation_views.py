@@ -116,7 +116,10 @@ def get_calibration_data_by_iteration(request: Request) -> Response:
         .values('metric_name', 'metric_display_name', 'metric_value')
     )
 
+    for row in nwm_retrospective_data:
+        row['metric_value'] = normalize_float(row.get('metric_value'))
     retrospective_data = [{'name': 'NWM 3.0', 'data': nwm_retrospective_data}]
+
 
     iterations = list(get_iterations_for_calibration_job(run))
     iteration_ids = [it.id for it in iterations]
@@ -150,7 +153,8 @@ def get_calibration_data_by_iteration(request: Request) -> Response:
     ):
         params_by_iter[p['iteration_id']].append({
             'parameter_name': p['calibration_parameter__name'],
-            'parameter_value': p['tuned_value'],
+            'parameter_value': normalize_float(p['tuned_value']),
+
         })
 
     metrics_by_iter = defaultdict(list)

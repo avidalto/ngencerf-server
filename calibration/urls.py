@@ -80,7 +80,6 @@ urlpatterns = [
     path('calibration/cold_start_job_slurm_callback/', calibration_run_views.cold_start_job_slurm_callback, name="coldStartJobSlurmCallback"),
     path('calibration/forecast_job_slurm_callback/', calibration_run_views.forecast_job_slurm_callback, name="forecastJobSlurmCallback"),
     path('calibration/verification_job_slurm_callback/', calibration_run_views.verification_job_slurm_callback, name="verificationJobSlurmCallback"),
-    path('calibration/update_mpi_rules/', calibration_run_views.update_mpi_rules, name="updateMPIRules"),
 
     ##################################
     # Evaluation

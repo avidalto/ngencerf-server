@@ -4,6 +4,7 @@ FROM rockylinux:8
 RUN set -eux && \
     dnf install -y yum-utils epel-release && \
     dnf install -y \
+        redis \
         findutils \
         file \
         jq \

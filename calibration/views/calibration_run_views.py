@@ -819,37 +819,6 @@ def process_swe_timeseries(request: Request) -> Response:
     return Response(response_validator.data)
 
 
-@api_view(['GET', 'POST'])
-@handle_exceptions
-def update_mpi_rules(request: Request) -> Response:
-    """
-    Undocumented endpoint for updating the MPI rules
-    """
-    data = request.data if request.method == 'POST' else request.query_params.dict()
-
-    logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
-    validator, error_return = validate_request(MPINodesRulesSerializer, data)
-    if error_return:
-        return error_return
-
-    mpi_rules = validator.get('mpi_rules')
-    if mpi_rules:
-        ngen_cal_input.MPI_NODE_RULES = mpi_rules
-
-    message = "Updated MPI Rules" if mpi_rules else "Current MPI Rules"
-    response = {
-        'message': message,
-        'mpi_rules': ngen_cal_input.MPI_NODE_RULES
-    }
-
-    response_validator, error_response = validate_response(MPINodesRulesResponseSerializer, response)
-    if error_response:
-        return error_response
-    logger.debug(
-        f'Returning to {get_user_email(request)} from {get_caller_name()}(){get_elapsed_str(request)} - {json.dumps(response_validator.data)}')
-
-    return Response(response_validator.data)
-
 
 @extend_schema(
     request=ReportIterationSerializer,
@@ -1439,12 +1408,6 @@ def get_slurm_token(request: Request) -> Response:
     return Response({'access': generate_custom_token(request.user, TOKEN_SLURM_SCOPE)})
 
 
-ACTIVE_DB_STATUSES = {
-    StatusEnum.SUBMITTED.db_instance,
-    StatusEnum.RUNNING.db_instance,
-}
-
-
 def check_slurm_reconciliation(run: BaseRun) -> tuple[bool, str | None]:
     """
     Determine whether a run requires Slurm reconciliation.
@@ -1480,7 +1443,10 @@ def check_slurm_reconciliation(run: BaseRun) -> tuple[bool, str | None]:
     if not run.slurm_job_id:
         return False, None
 
-    if run.status not in ACTIVE_DB_STATUSES:
+    if run.status not in {
+        StatusEnum.SUBMITTED.db_instance,
+        StatusEnum.RUNNING.db_instance,
+    }:
         return False, None
 
     slurm_is_active, sacct_status = get_slurm_status(run.slurm_job_id)
