@@ -26,6 +26,7 @@ services:
       args:
         - MSWM_TAG=${MSWM_TAG:-development}
         - NGEN_FORCING_TAG=${NGEN_FORCING_TAG:-development}
+        - NGEN_TAG=${NGEN_TAG:-development}
         - DATA_ASSIMILATION_TAG=${DATA_ASSIMILATION_TAG:-development}
         - CACHE_BUST=${CACHE_BUST:-1}
     image: ghcr.io/ngwpc/ngencerf-server:${NGENCERF_SERVER_TAG:-latest}
