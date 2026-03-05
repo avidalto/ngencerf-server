@@ -1,0 +1,211 @@
+Implement Email Verification in ngenCerf
+========================================
+
+Currently, ngenCerf requires users to provide an email address when they register.
+However, the system does not verify that the email address is valid or belongs to the person creating the account. As a result:
+
+* Anyone can create an account using any email address.
+* The system cannot reliably identify who owns an account.
+* Password recovery is difficult or impossible if the user forgets their password.
+
+To address these issues, ngenCerf should implement email verification, similar to what most modern web services use.
+
+
+Typical Email Verification Flow
+================================
+
+The typical process works as follows:
+
+* The user registers an account.
+* The system sends a verification email to the provided address.
+* The user clicks the verification link in the email.
+* The system marks the email as verified and allows the user full access.
+
+This process ensures that the user actually controls the email address associated with the account.
+
+The system must also support resending the verification email, since users may lose the original message or delay completing the verification step.
+
+
+Additional Capabilities
+=======================
+
+Once email verification is implemented, the same framework can support additional user account features such as:
+
+* Password recovery if a user forgets their password
+* Changing a user's email address
+* Re-verifying an email after it is changed
+
+These features rely on sending secure links to the user's email address.
+
+
+Implementation Overview
+=======================
+
+Server
+------
+
+Some required functionality already exists in Djoser, the library ngenCerf uses to manage user accounts.
+
+Additional work will include:
+
+* Enabling and configuring Djoser email verification features
+* Adding endpoints to resend verification emails
+* Adding endpoints to confirm verification links
+* Tracking whether each user's email address has been verified
+
+
+User Interface
+--------------
+
+The UI will need several new pages to support the email verification process.
+
+Most pages are simple informational screens, for example:
+
+“Verification email has been sent. Check your email and click the link.”
+
+Other pages allow the user to provide basic information such as:
+
+* Email address
+* New password
+
+These pages support workflows such as password recovery and email changes.
+
+In total, approximately five new UI pages will be required.
+
+
+Benefits
+========
+
+Implementing email verification will:
+
+* Ensure that accounts are tied to real email addresses
+* Enable secure password recovery
+* Improve overall account security
+* Bring ngenCerf in line with standard web application practices
+
+
+Pre-Requisites
+==============
+
+In order for email verification and password recovery to work, ngenCerf must be able to send outgoing email messages.
+This requires access to an SMTP server or a hosted email delivery service.
+
+Possible options include:
+
+* AWS Simple Email Service (SES)
+* An existing organizational SMTP server
+* A third-party email delivery provider (e.g., SendGrid, Mailgun)
+
+These services are responsible for reliably delivering verification and password-reset emails to users.
+
+In addition to the email delivery service, several configuration items must be defined.
+
+
+Sender Email Address
+--------------------
+
+The system must send messages from a recognizable address, such as:
+
+no-reply@ngencerf.org
+
+This helps users identify that the message is legitimate.
+
+
+Security Configuration
+----------------------
+
+Email verification links contain secure tokens that allow the system to confirm the identity of the user.
+
+These tokens rely on a server secret key that must be configured uniquely for each deployment environment.
+
+This ensures that verification links generated in one environment (e.g., development or testing)
+cannot be used in another environment (e.g., production).
+
+
+Operational Considerations
+--------------------------
+
+Email delivery services often require basic configuration before they can send messages, including:
+
+* Verifying the sending email domain
+* Configuring DNS records
+* Setting up authentication credentials
+
+Once these steps are completed, ngenCerf can send verification and password recovery emails automatically.
+
+
+Estimated Effort
+================
+
+The effort required to implement email verification in ngenCerf is relatively modest because the system already uses Djoser,
+which provides much of the required functionality.
+
+Server work primarily involves configuration and implementing a small number of supporting endpoints.
+User interface work involves adding several simple pages and integrating them into the existing authentication flow.
+
+Estimated effort:
+
+Server implementation:
+Approximately 2–4 days
+
+Tasks include:
+
+* Configuring email delivery
+* Integrating Djoser activation functionality
+* Implementing endpoints for resending verification emails
+* Implementing endpoints for confirming verification tokens
+* Tracking verification status for each user
+
+User interface implementation:
+Approximately 2–3 days
+
+Tasks include:
+
+* Adding verification-related pages
+* Implementing password recovery pages
+* Connecting UI pages to the server endpoints
+
+Total estimated effort:
+Approximately 4–7 days of development work
+
+This estimate assumes no major infrastructure issues with email delivery configuration.
+
+
+Risks and Impact if Not Implemented
+===================================
+
+If email verification is not implemented, ngenCerf will continue to have several limitations.
+
+Unverified accounts
+-------------------
+
+* Anyone can register with any email address, including addresses they do not control.
+* This reduces confidence in the identity of users.
+
+Password recovery limitations
+-----------------------------
+
+* Without verified email addresses, password recovery cannot reliably function.
+* Users who forget their passwords may be unable to regain access to their accounts.
+
+Administrative overhead
+-----------------------
+
+* Without a reliable password recovery process, administrators may need to manually intervene when users lose access to their accounts.
+
+Security concerns
+-----------------
+
+* Unverified email addresses increase the risk of account misuse or impersonation.
+
+
+Future Risk: Migration Away from Parallel Works
+-----------------------------------------------
+
+Currently, access to ngenCerf is partially controlled through the Parallel Works login system.
+This provides an additional layer of access control outside of ngenCerf itself.
+
+As the system evolves and potentially moves away from Parallel Works authentication,
+ngenCerf will need to rely entirely on its own account management system.
+
+Without email verification in place, the system would have no reliable way to confirm user identity or provide secure password recovery.

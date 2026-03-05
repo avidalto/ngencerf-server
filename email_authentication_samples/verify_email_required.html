@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <title>Verify Email Required</title>
+</head>
+<body>
+<!--
+Route
+-----
+/verify-email-required
+
+Purpose
+-------
+Shown when the user is authenticated but:
+
+    email_verified == False
+
+The user cannot use most API endpoints until their email is verified.
+
+UI behavior on page load
+------------------------
+Display two options:
+
+A) Resend verification email to the current address.
+
+B) Change the email address and send verification to the new address.
+
+Server calls
+------------
+A) Resend verification
+
+POST /auth/users/send_verification_email/
+Body: {}
+
+Auth: required (JWT)
+
+B) Change email and verify
+
+POST /auth/users/send_verification_email/
+Body:
+{
+  "new_email": "<new email>"
+}
+
+Auth: required (JWT)
+
+After server call returns
+-------------------------
+If response == 204:
+    redirect to:
+
+        /verification-email-sent
+
+If response == 400:
+    display validation errors.
+
+If response == 500:
+    show generic error and allow retry.
+-->
+
+<h1>Verify Email Required</h1>
+
+<p>You must verify your email address before using the application.</p>
+
+<h2>Resend verification email</h2>
+<button>Resend Verification Email</button>
+
+<hr>
+
+<h2>Change email and verify</h2>
+
+<form>
+    <label>New email:</label>
+    <input type="email" name="new_email">
+    <button type="submit">Send Verification</button>
+</form>
+
+</body>
+</html>

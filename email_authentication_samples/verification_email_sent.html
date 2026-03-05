@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <title>Verification Email Sent</title>
+</head>
+<body>
+
+<!--
+Route
+-----
+/verification-email-sent
+
+Purpose
+-------
+Displayed after a verification email has been successfully requested.
+
+Used for both:
+
+1) Initial registration (Djoser activation email)
+2) Resend/change-email verification requests
+
+UI behavior on page load
+------------------------
+Display instructions telling the user to check their email.
+
+No server call is required.
+
+After previous server call
+--------------------------
+If the prior request returned 204:
+
+    Tell the user to check their email and click the verification link.
+
+Provide navigation options:
+
+    /login
+    /verify-email-required
+-->
+
+<h1>Verification Email Sent</h1>
+
+<p>Please check your email and click the verification link.</p>
+
+<p>If you don't see the email, check your spam folder.</p>
+
+<p><a href="/login">Back to Login</a></p>
+<p><a href="/verify-email-required">Resend Verification</a></p>
+
+</body>
+</html>

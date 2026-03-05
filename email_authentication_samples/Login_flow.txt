@@ -1,0 +1,20 @@
+User logs in
+/login
+        │
+        │ POST /auth/jwt/create/
+        ▼
+JWT issued
+        │
+        │ GET /auth/users/me/
+        ▼
+Check email_verified
+        │
+        ├── email_verified = True
+        │
+        │      ▼
+        │   /dashboard
+        │
+        └── email_verified = False
+               ▼
+        /verify-email-required
+        (verify_email_required.html)

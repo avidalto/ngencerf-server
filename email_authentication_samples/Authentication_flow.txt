@@ -1,0 +1,35 @@
+┌───────────────────────────────┐
+│           REGISTER            │
+└───────────────────────────────┘
+            │
+            │ POST /auth/users/
+            │
+            ▼
+User created
+is_active = True
+email_verified = False
+            │
+            │
+            │ Djoser sends activation email
+            │ containing: uid + token
+            ▼
+User clicks activation link
+            │
+            │
+            ▼
+/activate?uid=...&token=...
+(account_activation.html)
+            │
+            │ POST /auth/users/activation/
+            │
+            ▼
+Djoser activates account
+user_activated signal fires
+            │
+            ▼
+mark_email_verified()
+email_verified = True
+            │
+            ▼
+User can access application
+/dashboard

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <title>Activating Account</title>
+</head>
+<body>
+
+<!--
+Route
+-----
+/activate?uid=UID&token=TOKEN
+
+Purpose
+-------
+Landing page for the Djoser activation email.
+
+Even though accounts are already active in this system,
+the activation email is used to verify the user's email.
+
+Example activation link
+-----------------------
+
+https://app.example.com/activate?uid=ABC123&token=XYZ456
+
+UI behavior on page load
+------------------------
+Extract uid and token from URL query parameters.
+
+Immediately call:
+
+POST /auth/users/activation/
+
+Body:
+{
+  "uid": "<uid>",
+  "token": "<token>"
+}
+
+Auth: NOT required
+
+Backend behavior
+----------------
+On success, Djoser emits:
+
+    user_activated
+
+Your signal handler sets:
+
+    email_verified = True
+
+After server call returns
+-------------------------
+If response == 204:
+
+    email successfully verified.
+
+    redirect user to:
+
+        /dashboard
+
+If response == 400:
+
+    activation link invalid or expired.
+
+    show links to:
+
+        /login
+        /verify-email-required
+
+If response == 500:
+
+    show generic error and allow retry.
+-->
+
+<h1>Verifying your email...</h1>
+
+<p>Please wait while we confirm your activation link.</p>
+
+<hr>
+
+<h2>If activation fails</h2>
+
+<p><a href="/login">Back to Login</a></p>
+<p><a href="/verify-email-required">Resend verification</a></p>
+
+</body>
+</html>

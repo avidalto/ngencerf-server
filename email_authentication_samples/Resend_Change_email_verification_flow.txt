@@ -1,0 +1,36 @@
+/verify-email-required
+        │
+        ├── Option A
+        │    Resend verification
+        │
+        │ POST /auth/users/send_verification_email/
+        │ Body: {}
+        │
+        └── Option B
+             Change email
+
+             POST /auth/users/send_verification_email/
+             Body:
+             {
+               new_email: "new@example.com"
+             }
+
+        ▼
+/verification-email-sent
+(verification_email_sent.html)
+        │
+        ▼
+User clicks verification link in email
+
+/verify-email?token=SIGNED_TOKEN
+(verify_email.html)
+        │
+        │ POST /auth/users/verify_email_confirm/
+        │
+        ▼
+Token validated
+email_verified = True
+(optional: email updated)
+        │
+        ▼
+/dashboard
