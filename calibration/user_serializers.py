@@ -36,7 +36,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-        token["email"] = user.email
+        token["email"] = user.email  # noqa
         token["email_verified"] = bool(getattr(user, "email_verified", False))
         return token
 

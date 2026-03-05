@@ -164,8 +164,62 @@ CACHES = {
 
 AUTH_USER_MODEL = 'calibration.CustomUser'
 
+# ------------------------------------------------------------------------------
+# Email verification token configuration
+# ------------------------------------------------------------------------------
+
+
+# TODO This should definitely be in the env eventually
 EMAIL_FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 EMAIL_SITE_NAME = os.getenv("SITE_NAME", "NgenCerf")
+
+# Salt used for signing custom email verification tokens created with
+# django.core.signing.dumps().
+#
+# The cryptographic secret used to sign tokens is Django's SECRET_KEY.
+# Since SECRET_KEY is different on each deployed system, tokens generated
+# on one system will not validate on another system even if the salt value
+# is the same.
+#
+# The purpose of the salt is namespacing: it ensures that verification
+# tokens cannot be confused with other signed tokens in the application
+# that may also use django.core.signing.
+#
+# These tokens are used by:
+#   calibration.views.email_verification_views._make_email_verify_token()
+#
+# Changing this value will immediately invalidate all previously issued
+# verification links.
+EMAIL_VERIFY_SALT = "cerf.email.verify.v1"
+
+# ------------------------------------------------------------------------------
+# Email / account verification configuration
+# ------------------------------------------------------------------------------
+
+# Used by:
+#   calibration.views.email_verification_views._load_email_verify_token()
+#
+# These tokens are generated using django.core.signing and are used for:
+#   - resending verification emails
+#   - verifying changed email addresses
+#
+# They are validated using django.core.signing.loads(..., max_age=...)
+EMAIL_VERIFY_MAX_AGE_SECONDS = 60 * 60 * 24  # 24 hours
+
+
+# ------------------------------------------------------------------------------
+# Django / Djoser token expiration
+# ------------------------------------------------------------------------------
+
+# Used by Django's PasswordResetTokenGenerator.
+#
+# This affects tokens used by:
+#   - Djoser account activation (/auth/users/activation/)
+#   - Djoser password reset (/auth/users/reset_password_confirm/)
+#
+# Default Django value is 3 days (259200 seconds), but we explicitly define
+# it here so the timeout policy is clear.
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24  # 24 hours
 
 DJOSER = {
     "SEND_ACTIVATION_EMAIL": True,

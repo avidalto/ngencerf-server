@@ -1087,7 +1087,7 @@ def check_aws_credentials(*, timeout_seconds: int = 3) -> None:
             identity.get("Arn"),
         )
 
-    except (botocore.exceptions.NoCredentialsError, botocore.exceptions.PartialCredentialsError) as e:
+    except (botocore.exceptions.NoCredentialsError, botocore.exceptions.PartialCredentialsError):
         # Boto3 could not construct a usable credential set locally
         # (missing, incomplete, unreadable, or unresolved credentials).
         # No request was made to AWS.
