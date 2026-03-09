@@ -1,0 +1,11 @@
+{#
+Plain text version of the custom verification email.
+#}
+
+Hello {{ user.email }},
+
+Please verify your email address for {{ site_name }} by clicking the link below:
+
+{{ verify_url }}
+
+If you did not request this, you can ignore this email.

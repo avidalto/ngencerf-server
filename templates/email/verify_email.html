@@ -1,0 +1,38 @@
+{#
+Used by the custom verification endpoint:
+
+    POST /auth/users/send_verification_email/
+
+This is used for:
+    - resending verification
+    - verifying a changed email address
+
+Context variables provided by the backend:
+    user
+    site_name
+    verify_url
+#}
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Verify your email for {{ site_name }}</title>
+</head>
+
+<body>
+
+<p>Hello {{ user.email }},</p>
+
+<p>Please verify your email address for {{ site_name }} by clicking the link below:</p>
+
+<p>
+<a href="{{ verify_url }}">
+Verify email address
+</a>
+</p>
+
+<p>If you did not request this, you can ignore this email.</p>
+
+</body>
+</html>

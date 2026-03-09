@@ -13,7 +13,7 @@ ALLOWED_PATH_PREFIXES = (
     "/auth/jwt/create/",
     "/auth/jwt/refresh/",
     "/auth/users/reset_password/",
-    "/auth/ users/reset_password_confirm/"
+    "/auth/users/reset_password_confirm/"
 )
 
 

@@ -1,0 +1,11 @@
+{#
+Plain text version of the Djoser activation email.
+#}
+
+Hello {{ user.email }},
+
+Please activate your {{ site_name }} account by clicking the link below:
+
+{{ protocol }}://{{ domain }}/{{ url }}
+
+If you did not create this account, you can ignore this email.

@@ -5,8 +5,9 @@ from urllib.parse import unquote
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import signing
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
 from django.dispatch import receiver
+from django.template.loader import render_to_string
 from djoser.signals import user_activated
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from rest_framework import status
@@ -252,20 +253,25 @@ def send_verification_email(request: Request) -> Response:
     # UI route that will call verify_email_confirm with the token.
     verify_url = f"{settings.EMAIL_FRONTEND_URL.rstrip('/')}/auth/verify-email?token={token}"
 
-    subject = f"Verify your email address for {settings.EMAIL_SITE_NAME}"
-    body = (
-        "Click the link to verify your email address:\n\n"
-        f"{verify_url}\n\n"
-        "If you did not request this, you can ignore this email."
-    )
+    context = {
+        "user": user,
+        "site_name": settings.EMAIL_SITE_NAME,
+        "verify_url": verify_url,
+        "target_email": target_email,
+    }
 
-    send_mail(
+    subject = f"Verify your email address for {settings.EMAIL_SITE_NAME}"
+    text_body = render_to_string("email/verify_email.txt", context)
+    html_body = render_to_string("email/verify_email.html", context)
+
+    email_message = EmailMultiAlternatives(
         subject=subject,
-        message=body,
+        body=text_body,
         from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[target_email],
-        fail_silently=False,
+        to=[target_email],
     )
+    email_message.attach_alternative(html_body, "text/html")
+    email_message.send(fail_silently=False)
 
     logger.info(
         "Sent verification email: user_id=%s current_email=%r target_email=%r new_email_provided=%s",

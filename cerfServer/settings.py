@@ -12,6 +12,7 @@ import os
 import re
 from datetime import timedelta, datetime, timezone
 from enum import StrEnum, auto
+from urllib.parse import urlparse
 
 from datetimerange import DateTimeRange
 from dotenv import load_dotenv
@@ -168,11 +169,6 @@ AUTH_USER_MODEL = 'calibration.CustomUser'
 # Email verification token configuration
 # ------------------------------------------------------------------------------
 
-
-# TODO This should definitely be in the env eventually
-EMAIL_FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
-EMAIL_SITE_NAME = os.getenv("SITE_NAME", "NgenCerf")
-
 # Salt used for signing custom email verification tokens created with
 # django.core.signing.dumps().
 #
@@ -206,7 +202,6 @@ EMAIL_VERIFY_SALT = "cerf.email.verify.v1"
 # They are validated using django.core.signing.loads(..., max_age=...)
 EMAIL_VERIFY_MAX_AGE_SECONDS = 60 * 60 * 24  # 24 hours
 
-
 # ------------------------------------------------------------------------------
 # Django / Djoser token expiration
 # ------------------------------------------------------------------------------
@@ -221,13 +216,29 @@ EMAIL_VERIFY_MAX_AGE_SECONDS = 60 * 60 * 24  # 24 hours
 # it here so the timeout policy is clear.
 PASSWORD_RESET_TIMEOUT = 60 * 60 * 24  # 24 hours
 
+# Url of the frontend, used for callbacks
+EMAIL_FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+EMAIL_SITE_NAME = os.getenv("SITE_NAME", "ngenCerf")
+
+# Ensure URL includes a scheme so urlparse behaves correctly.
+# If the user supplies "localhost:3000", treat it as "http://localhost:3000".
+if "://" not in EMAIL_FRONTEND_URL:
+    EMAIL_FRONTEND_URL = f"http://{EMAIL_FRONTEND_URL}"
+
+_parsed_frontend_url = urlparse(EMAIL_FRONTEND_URL)
+
+EMAIL_FRONTEND_PROTOCOL = _parsed_frontend_url.scheme
+EMAIL_FRONTEND_DOMAIN = _parsed_frontend_url.netloc
+
 DJOSER = {
     "SEND_ACTIVATION_EMAIL": True,
     "SITE_NAME": EMAIL_SITE_NAME,
+    "EMAIL_FRONTEND_PROTOCOL": EMAIL_FRONTEND_PROTOCOL,
+    "EMAIL_FRONTEND_DOMAIN": EMAIL_FRONTEND_DOMAIN,
 
     # Endpoint needs to post {uid, token} to (/users/activation/
     "ACTIVATION_URL": "activate?uid={uid}&token={token}",
-    "PASSWORD_RESET_CONFIRM_URL": "reset-password-confirm?uid={uid}&token={token}",
+    "PASSWORD_RESET_CONFIRM_URL": "reset-password?uid={uid}&token={token}",
 
     "SET_PASSWORD_RETYPE": True,
     "UPDATE_LAST_LOGIN": True,
