@@ -1,39 +1,41 @@
 {#
 Used by Djoser for the initial account activation email.
 
-Triggered after:
-    POST /auth/users/
+Triggered by:
+POST /auth/users/
 
-The activation link points to the frontend route defined by:
-    DJOSER["ACTIVATION_URL"]
+The activation link points to the shared frontend login page, using:
+/login?action=activate&uid=
+<uid>&token=
+    <token>
 
-Context variables provided by Djoser:
-    user
-    site_name
-    protocol
-    domain
-    url
-#}
+        Context variables provided by Djoser:
+        user
+        site_name
+        protocol
+        domain
+        url
+        #}
 
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Activate your {{ site_name }} account</title>
-</head>
-<body>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Activate your {{ site_name }} account</title>
+        </head>
+        <body>
 
-<p>Hello {{ user.email }},</p>
+        <p>Hello {{ user.email }},</p>
 
-<p>Please activate your {{ site_name }} account by clicking the link below:</p>
+        <p>Please activate your {{ site_name }} account by clicking the link below:</p>
 
-<p>
-<a href="{{ protocol }}://{{ domain }}/{{ url }}">
-Activate account
-</a>
-</p>
+        <p>
+            <a href="{{ protocol }}://{{ domain }}/{{ url }}">
+                Activate account
+            </a>
+        </p>
 
-<p>If you did not create this account, you can ignore this email.</p>
+        <p>If you did not create this account, you can ignore this email.</p>
 
-</body>
-</html>
+        </body>
+        </html>

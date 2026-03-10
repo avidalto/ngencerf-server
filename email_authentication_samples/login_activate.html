@@ -2,30 +2,34 @@
 <html lang="en">
 <head>
     <meta charset="utf-8"/>
-    <title>Activating Account</title>
+    <title>Login / Activation Handler</title>
 </head>
 <body>
 
 <!--
 Route
 -----
-/activate?uid=UID&token=TOKEN
+/login?action=activate&uid=UID&token=TOKEN
 
 Purpose
 -------
-Landing page for the Djoser activation email.
+This uses the shared login page as the landing page for the Djoser activation email.
 
 Even though accounts are already active in this system,
 the activation email is used to verify the user's email.
 
-Example activation link
------------------------
+Example link
+------------
 
-https://app.example.com/activate?uid=ABC123&token=XYZ456
+https://app.example.com/login?action=activate&uid=ABC123&token=XYZ456
 
 UI behavior on page load
 ------------------------
-Extract uid and token from URL query parameters.
+Read the query parameters:
+
+    action=activate
+    uid
+    token
 
 Immediately call:
 

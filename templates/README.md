@@ -27,8 +27,12 @@ templates/djoser/email/activation.*
     Triggered by:
         POST /auth/users/
 
-    The email contains a link that directs the user to the frontend
-    activation page defined by:
+    The email contains a link that directs the user to the shared
+    frontend login page using:
+
+        /login?action=activate&uid=<uid>&token=<token>
+
+    The exact path/query string is defined by:
 
         DJOSER["ACTIVATION_URL"]
 
@@ -39,8 +43,12 @@ templates/djoser/email/password_reset.*
     Triggered by:
         POST /auth/users/reset_password/
 
-    The email contains a link that directs the user to the frontend
-    password reset page defined by:
+    The email contains a link that directs the user to the shared
+    frontend login page using:
+
+        /login?action=reset-password&uid=<uid>&token=<token>
+
+    The exact path/query string is defined by:
 
         DJOSER["PASSWORD_RESET_CONFIRM_URL"]
 
@@ -54,6 +62,11 @@ templates/email/verify_email.*
     This email is used when:
         * a user resends a verification email
         * a user changes their email address and must verify the new address
+
+    The email contains a link that directs the user to the shared
+    frontend login page using:
+
+        /login?action=verify-email&token=<token>
 
 
 Notes

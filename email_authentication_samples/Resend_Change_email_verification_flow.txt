@@ -1,3 +1,12 @@
+Note:
+All authentication email links now land on the shared login page:
+
+    /login
+
+Behavior is determined by the query parameter:
+
+    action=<activate | verify-email | reset-password>
+
 /verify-email-required
         │
         ├── Option A
@@ -22,8 +31,8 @@
         ▼
 User clicks verification link in email
 
-/verify-email?token=SIGNED_TOKEN
-(verify_email.html)
+/login?action=verify-email&token=SIGNED_TOKEN
+(login_verify_email.html)
         │
         │ POST /auth/users/verify_email_confirm/
         │

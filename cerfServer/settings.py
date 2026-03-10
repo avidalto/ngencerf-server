@@ -237,8 +237,8 @@ DJOSER = {
     "EMAIL_FRONTEND_DOMAIN": EMAIL_FRONTEND_DOMAIN,
 
     # Endpoint needs to post {uid, token} to (/users/activation/
-    "ACTIVATION_URL": "activate?uid={uid}&token={token}",
-    "PASSWORD_RESET_CONFIRM_URL": "reset-password?uid={uid}&token={token}",
+    "ACTIVATION_URL": "login?action=activate&uid={uid}&token={token}",
+    "PASSWORD_RESET_CONFIRM_URL": "login?action=reset-password&uid={uid}&token={token}",
 
     "SET_PASSWORD_RETYPE": True,
     "UPDATE_LAST_LOGIN": True,

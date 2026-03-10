@@ -1,3 +1,12 @@
+Note:
+All authentication email links now land on the shared login page:
+
+    /login
+
+Behavior is determined by the query parameter:
+
+    action=<activate | verify-email | reset-password>
+
 ┌───────────────────────────────┐
 │           REGISTER            │
 └───────────────────────────────┘
@@ -17,8 +26,8 @@ User clicks activation link
             │
             │
             ▼
-/activate?uid=...&token=...
-(account_activation.html)
+/login?action=activate&uid=...&token=...
+(login_activate.html)
             │
             │ POST /auth/users/activation/
             │

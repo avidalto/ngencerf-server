@@ -250,8 +250,10 @@ def send_verification_email(request: Request) -> Response:
     # This token is later POSTed to verify_email_confirm.
     token = _make_email_verify_token(user_id=int(user.id), email=target_email)
 
-    # UI route that will call verify_email_confirm with the token.
-    verify_url = f"{settings.EMAIL_FRONTEND_URL.rstrip('/')}/auth/verify-email?token={token}"
+    verify_url = (
+        f"{settings.EMAIL_FRONTEND_URL.rstrip('/')}"
+        f"/login?action=verify-email&token={token}"
+    )
 
     context = {
         "user": user,
