@@ -5,7 +5,7 @@ All authentication email links now land on the shared login page:
 
 Behavior is determined by the query parameter:
 
-    action=<activate | verify-email | reset-password>
+    action=<verify-email | reset-password>
 
 ┌───────────────────────────────┐
 │           REGISTER            │
@@ -19,24 +19,20 @@ is_active = True
 email_verified = False
             │
             │
-            │ Djoser sends activation email
-            │ containing: uid + token
+            │ Server sends initial verification email
+            │ containing: signed token
             ▼
-User clicks activation link
+User clicks verification link
             │
-            │
-            ▼
-/login?action=activate&uid=...&token=...
-(login_activate.html)
-            │
-            │ POST /auth/users/activation/
             │
             ▼
-Djoser activates account
-user_activated signal fires
+/login?action=verify-email&token=SIGNED_TOKEN
+(login_verify_email.html)
+            │
+            │ POST /auth/users/verify_email_confirm/
             │
             ▼
-mark_email_verified()
+Token validated
 email_verified = True
             │
             ▼

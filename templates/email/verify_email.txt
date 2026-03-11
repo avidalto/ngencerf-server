@@ -1,11 +1,13 @@
-{#
+{% comment %}
 Plain text version of the custom verification email.
 
-Frontend landing page:
-    /login?action=verify-email&token=<token>
-#}
+Used for:
+- initial registration verification
+- resend verification
+- change email verification
+{% endcomment %}
 
-Hello {{ user.email }},
+Hello {{ user.get_full_name|default:user.email }},
 
 Please verify your email address for {{ site_name }} by clicking the link below:
 

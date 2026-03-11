@@ -1,14 +1,12 @@
-import hashlib
 import logging
+from typing import cast
 from urllib.parse import unquote
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import signing
 from django.core.mail import EmailMultiAlternatives
-from django.dispatch import receiver
 from django.template.loader import render_to_string
-from djoser.signals import user_activated
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -20,22 +18,81 @@ from rest_framework.response import Response
 from calibration.util.calibration_validators import ErrorResponseSerializer, SendVerificationEmailRequestSerializer, \
     VerifyEmailConfirmRequestSerializer
 from calibration.views.called_from import get_caller_name
-from calibration.views.common import handle_exceptions, get_user_email, validate_request, get_elapsed_str
-from cerfServer.settings import EMAIL_VERIFY_MAX_AGE_SECONDS, EMAIL_VERIFY_SALT
+from calibration.views.common import handle_exceptions, get_user_email, validate_request, get_elapsed_str, ResponseError
 
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
 
-def _token_fingerprint(token: str) -> str:
+def _send_email_verification_message(user: User, target_email: str) -> None:
     """
-    Produce a short, non-reversible identifier for correlating token-related logs.
+    Send a signed email verification message to the given email address.
 
-    :param token: Raw token string.
-    :return: Short hash prefix string.
+    This helper centralizes the actual email creation/sending logic so it can be
+    reused by:
+    - send_verification_email() for resend / change-email verification
+    - send_initial_verification_email() for initial registration verification
+
+    :param user: User who is being verified.
+    :param target_email: Email address that should receive the verification email.
+    :return: None
     """
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:12]
+    # Create signed verification token bound to (user_id, target_email).
+    token = _make_email_verify_token(user_id=int(user.id), email=target_email)
+
+    verify_url = (
+        f"{settings.EMAIL_FRONTEND_URL.rstrip('/')}"
+        f"/login?action=verify-email&token={token}"
+    )
+
+    context = {
+        "user": user,
+        "site_name": settings.EMAIL_SITE_NAME,
+        "verify_url": verify_url,
+        "target_email": target_email,
+    }
+
+    subject = f"Verify your email address for {settings.EMAIL_SITE_NAME}"
+    text_body = render_to_string("email/verify_email.txt", context)
+    html_body = render_to_string("email/verify_email.html", context)
+
+    email_message = EmailMultiAlternatives(
+        subject=subject,
+        body=text_body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[target_email],
+    )
+    email_message.attach_alternative(html_body, "text/html")
+    email_message.send(fail_silently=False)
+
+
+def send_initial_verification_email(user: User) -> None:
+    """
+    Send the initial email verification message for a newly created user.
+
+    This is intended to replace Djoser's activation email when we are using
+    the custom signed-token verification flow for initial registration.
+
+    Unlike resend/change-email verification, this always targets the user's
+    current email address stored on the account.
+
+    :param user: Newly created user.
+    :return: None
+    :raises ValidationError: If the user does not have a usable email address.
+    """
+    target_email = (getattr(user, "email", "") or "").strip()
+
+    if not target_email:
+        raise ValidationError({"email": ["No email available to verify."]})
+
+    _send_email_verification_message(user, target_email)
+
+    logger.info(
+        "Sent initial verification email: user_id=%s email=%r",
+        user.id,
+        target_email,
+    )
 
 
 def _normalize_token_for_signing(token: str) -> str:
@@ -72,55 +129,24 @@ def _normalize_token_for_signing(token: str) -> str:
     return token
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Djoser activation -> mark email_verified
-# ──────────────────────────────────────────────────────────────────────────────
-
-@receiver(user_activated)
-def mark_email_verified(_sender, user, _request, **_kwargs):
-    """
-    Called after Djoser account activation completes.
-
-    This is ONLY for the initial registration activation email (Djoser flow).
-    It marks the account as verified in our application-level flag (email_verified).
-
-    Important:
-    - We are NOT using is_active=False/True as the enforcement mechanism.
-    - Users can log in before verification.
-    - API access is gated by IsEmailVerifiedOrAllowed until email_verified=True.
-
-    :param _sender: Unused. Provided by Djoser signal.
-    :param user: The activated user instance.
-    :param _request: Unused. Provided by Djoser signal.
-    :param _kwargs: Unused signal kwargs.
-    :return: None
-    """
-    if not getattr(user, "email_verified", False):
-        user.email_verified = True
-        user.save(update_fields=["email_verified"])
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Token helpers (custom signed-token verification flow)
-# ──────────────────────────────────────────────────────────────────────────────
-
 def _make_email_verify_token(*, user_id: int, email: str) -> str:
     """
     Create a signed, time-limited verification token for a user/email pair.
 
-    This token is ONLY used for the custom verification flow:
-      - resend verification email, and/or
-      - change email then verify the new email
+    This token is used for the custom email verification flow:
+      - initial registration verification
+      - resend verification email
+      - change email and verify the new email
 
-    It is embedded in a verification link sent via email, then later posted back
-    to verify_email_confirm.
+    It is embedded in a verification link sent via email, then later POSTed to
+    verify_email_confirm.
 
     :param user_id: ID of the user requesting verification.
     :param email: Email address to be verified (current or requested new email).
     :return: URL-safe signed token string.
     """
     payload = {"user_id": user_id, "email": email}
-    token = signing.dumps(payload, salt=EMAIL_VERIFY_SALT)
+    token = signing.dumps(payload, salt=settings.EMAIL_VERIFY_SALT)
 
     logger.info("Email verify token issued: user_id=%s email=%r", user_id, email)
 
@@ -162,8 +188,8 @@ def _load_email_verify_token(token: str) -> dict:
     try:
         payload = signing.loads(
             normalized_token,
-            salt=EMAIL_VERIFY_SALT,
-            max_age=EMAIL_VERIFY_MAX_AGE_SECONDS,
+            salt=settings.EMAIL_VERIFY_SALT,
+            max_age=settings.EMAIL_VERIFY_MAX_AGE_SECONDS,
         )
         logger.info(
             "Email verify token OK: keys=%s",
@@ -193,7 +219,7 @@ def _load_email_verify_token(token: str) -> dict:
             description="Internal server error",
         ),
     },
-    description="Send a signed verification email for current email or a requested new email",
+    description="Send a signed verification email to the user's current email or a requested new email",
 )
 @api_view(["POST"])
 @handle_exceptions
@@ -238,6 +264,14 @@ def send_verification_email(request: Request) -> Response:
     # Optional new email provided by UI when user wants to change email.
     requested_new_email = (validator.get("new_email") or "").strip()
 
+    if requested_new_email:
+        # If the user is trying to change their email, fail early if another
+        # account already uses that address. Exclude the current user so they
+        # can re-enter their own email without triggering a false duplicate.
+        email_exists = User.objects.filter(email__iexact=requested_new_email).exclude(id=user.id).exists()
+        if email_exists:
+            return ResponseError("A user with this email already exists.")
+
     # The email address we will actually send to / verify.
     target_email = requested_new_email or current_email
 
@@ -246,34 +280,7 @@ def send_verification_email(request: Request) -> Response:
         # unless the database contains legacy/bad rows or the user record is corrupted.
         raise ValidationError({"new_email": ["No email available to verify."]})
 
-    # Create signed verification token bound to (user_id, target_email).
-    # This token is later POSTed to verify_email_confirm.
-    token = _make_email_verify_token(user_id=int(user.id), email=target_email)
-
-    verify_url = (
-        f"{settings.EMAIL_FRONTEND_URL.rstrip('/')}"
-        f"/login?action=verify-email&token={token}"
-    )
-
-    context = {
-        "user": user,
-        "site_name": settings.EMAIL_SITE_NAME,
-        "verify_url": verify_url,
-        "target_email": target_email,
-    }
-
-    subject = f"Verify your email address for {settings.EMAIL_SITE_NAME}"
-    text_body = render_to_string("email/verify_email.txt", context)
-    html_body = render_to_string("email/verify_email.html", context)
-
-    email_message = EmailMultiAlternatives(
-        subject=subject,
-        body=text_body,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        to=[target_email],
-    )
-    email_message.attach_alternative(html_body, "text/html")
-    email_message.send(fail_silently=False)
+    _send_email_verification_message(cast(User, user), target_email)
 
     logger.info(
         "Sent verification email: user_id=%s current_email=%r target_email=%r new_email_provided=%s",
@@ -300,7 +307,7 @@ def send_verification_email(request: Request) -> Response:
             description="Internal server error",
         ),
     },
-    description="Confirm a signed verification token (used for resend verification and email changes)",
+    description="Confirm a signed verification token (used for initial registration, resend verification, and email changes)",
 )
 @api_view(["POST"])
 @handle_exceptions
@@ -309,7 +316,12 @@ def verify_email_confirm(request: Request) -> Response:
     """
     Confirm an email verification token and mark the user's email as verified.
 
-    Called by the UI when the user clicks the signed-token verification link in their email.
+    Called by the UI when the user clicks a signed-token verification link in their email.
+    This endpoint is used for:
+      - initial registration verification
+      - resend verification
+      - change-email verification
+
     The UI extracts the token from the URL and POSTs it to this endpoint.
 
     Request body:
@@ -327,7 +339,7 @@ def verify_email_confirm(request: Request) -> Response:
 
     :param request: DRF Request (unauthenticated allowed).
     :return: 204 No Content on success.
-    :raises ValidationError: If token is missing/invalid/expired or user not found.
+    :raises ValidationError: If token is missing, invalid, expired, or user not found.
     """
     data = request.data
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
@@ -360,6 +372,15 @@ def verify_email_confirm(request: Request) -> Response:
 
     # If the token email differs from the stored email, treat this as "change email + verify".
     if (getattr(user, "email", "") or "").strip().lower() != email.lower():
+        email_exists = (
+            User.objects
+            .filter(email__iexact=email)
+            .exclude(id=user.id)
+            .exists()
+        )
+        if email_exists:
+            return ResponseError("A user with this email already exists.")
+
         user.email = email
         update_fields.append("email")
 

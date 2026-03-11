@@ -5,7 +5,7 @@ All authentication email links now land on the shared login page:
 
 Behavior is determined by the query parameter:
 
-    action=<activate | verify-email | reset-password>
+    action=<verify-email | reset-password>
 
 /verify-email-required
         │

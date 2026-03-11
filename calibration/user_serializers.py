@@ -1,10 +1,14 @@
 import logging
 
 from django.contrib.auth import get_user_model
-from djoser.serializers import UserSerializer, UserCreateSerializer
+from django.utils.encoding import force_str
+from django.utils.http import urlsafe_base64_decode
+from djoser.serializers import UserSerializer, UserCreateSerializer, SendEmailResetSerializer, PasswordResetConfirmRetypeSerializer
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+from calibration.views.email_verification_views import send_initial_verification_email
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -17,10 +21,30 @@ class CustomUserCreateSerializer(UserCreateSerializer):
         extra_kwargs = {"password": {"write_only": True}}
 
     def create(self, validated_data):
+        """
+        Create a new user and send the initial email verification message.
+
+        Unlike Djoser activation, users are created as active immediately.
+        Email ownership is enforced separately through the email_verified flag.
+
+        :param validated_data: Validated serializer data.
+        :return: Newly created user.
+        """
         # Automatically set username to email
         validated_data["username"] = validated_data["email"]
 
-        return super().create(validated_data)
+        user = super().create(validated_data)
+
+        try:
+            send_initial_verification_email(user)
+        except Exception:
+            logger.exception(
+                "Failed to send initial verification email for user_id=%s email=%r",
+                user.id,
+                user.email,
+            )
+
+        return user
 
 
 class CustomUserSerializer(UserSerializer):
@@ -126,3 +150,71 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data["email"] = self.user.email
 
         return data
+
+
+class VerifiedEmailResetSerializer(SendEmailResetSerializer):
+    def get_user(self, is_active=True):
+        """
+        Return the user for password reset if the account exists.
+
+        Djoser uses this serializer for:
+            POST /auth/users/reset_password/
+
+        We log the lookup result here because successful password reset is also
+        treated as proof of email ownership in
+        VerifiedPasswordResetConfirmRetypeSerializer.
+
+        :param is_active: Whether to restrict lookup to active users.
+        :return: Matching user instance, or None if not found.
+        """
+        submitted_email = self.data.get("email")
+
+        logger.info(
+            "Password reset requested: submitted_email=%r, is_active=%s",
+            submitted_email,
+            is_active,
+        )
+
+        user = super().get_user(is_active=is_active)
+
+        logger.info(
+            "Password reset lookup result: submitted_email=%r, user_found=%s, user_id=%s, verified=%s, active=%s",
+            submitted_email,
+            bool(user),
+            getattr(user, "id", None),
+            getattr(user, "email_verified", None),
+            getattr(user, "is_active", None),
+        )
+
+        return user
+
+
+class VerifiedPasswordResetConfirmRetypeSerializer(PasswordResetConfirmRetypeSerializer):
+    def save(self):
+        """
+        Complete the password reset and treat a successful reset as proof that
+        the user controls the email address on file.
+
+        Djoser uses this serializer for:
+            POST /auth/users/reset_password_confirm/
+
+        This is the retype variant because:
+            SET_PASSWORD_RETYPE = True
+
+        After the parent serializer successfully validates the uid/token and
+        updates the password, this marks the user as email_verified=True if not
+        already verified.
+
+        :return: Result from the parent serializer save().
+        """
+        result = super().save()
+
+        uid = self.validated_data["uid"]
+        user_id = force_str(urlsafe_base64_decode(uid))
+        user = User.objects.get(pk=user_id)
+
+        if not getattr(user, "email_verified", False):
+            user.email_verified = True
+            user.save(update_fields=["email_verified"])
+
+        return result

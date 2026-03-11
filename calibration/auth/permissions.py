@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_PATH_PREFIXES = (
     "/auth/users/me/",
-    "/auth/users/activation/",
     "/auth/users/send_verification_email/",
     "/auth/users/verify_email_confirm/",
     "/auth/jwt/create/",

@@ -52,9 +52,6 @@ class CalibrationConfig(AppConfig):
     name = 'calibration'
 
     def ready(self) -> None:
-        # Must import here even though we're not referencing it
-        from calibration.views.email_verification_views import mark_email_verified
-        _ = mark_email_verified  # Ensures import is used
 
         # -------------------------------------------------------------
         # Detect dev server or gunicorn

@@ -31,8 +31,8 @@ load_dotenv(version_path)
 
 DJANGO_START_TIME = datetime.now(tz=timezone.utc)
 
-# EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
@@ -196,6 +196,7 @@ EMAIL_VERIFY_SALT = "cerf.email.verify.v1"
 #   calibration.views.email_verification_views._load_email_verify_token()
 #
 # These tokens are generated using django.core.signing and are used for:
+#   - initial registration verification
 #   - resending verification emails
 #   - verifying changed email addresses
 #
@@ -209,14 +210,13 @@ EMAIL_VERIFY_MAX_AGE_SECONDS = 60 * 60 * 24  # 24 hours
 # Used by Django's PasswordResetTokenGenerator.
 #
 # This affects tokens used by:
-#   - Djoser account activation (/auth/users/activation/)
 #   - Djoser password reset (/auth/users/reset_password_confirm/)
 #
 # Default Django value is 3 days (259200 seconds), but we explicitly define
 # it here so the timeout policy is clear.
 PASSWORD_RESET_TIMEOUT = 60 * 60 * 24  # 24 hours
 
-# Url of the frontend, used for callbacks
+# Base frontend URL used when constructing email links.
 EMAIL_FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 EMAIL_SITE_NAME = os.getenv("SITE_NAME", "ngenCerf")
 
@@ -231,19 +231,20 @@ EMAIL_FRONTEND_PROTOCOL = _parsed_frontend_url.scheme
 EMAIL_FRONTEND_DOMAIN = _parsed_frontend_url.netloc
 
 DJOSER = {
-    "SEND_ACTIVATION_EMAIL": True,
+    # Initial email verification is handled by us, not Djoser.
+    "SEND_ACTIVATION_EMAIL": False,
     "SITE_NAME": EMAIL_SITE_NAME,
     "EMAIL_FRONTEND_PROTOCOL": EMAIL_FRONTEND_PROTOCOL,
     "EMAIL_FRONTEND_DOMAIN": EMAIL_FRONTEND_DOMAIN,
 
-    # Endpoint needs to post {uid, token} to (/users/activation/
-    "ACTIVATION_URL": "login?action=activate&uid={uid}&token={token}",
     "PASSWORD_RESET_CONFIRM_URL": "login?action=reset-password&uid={uid}&token={token}",
 
     "SET_PASSWORD_RETYPE": True,
     "UPDATE_LAST_LOGIN": True,
 
     "SERIALIZERS": {
+        "password_reset": "calibration.user_serializers.VerifiedEmailResetSerializer",
+        "password_reset_confirm_retype": "calibration.user_serializers.VerifiedPasswordResetConfirmRetypeSerializer",
         "user_create": "calibration.user_serializers.CustomUserCreateSerializer",
         "user": "calibration.user_serializers.CustomUserSerializer",
         "current_user": "calibration.user_serializers.CustomUserSerializer",
