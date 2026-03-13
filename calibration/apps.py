@@ -51,7 +51,10 @@ class CalibrationConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'calibration'
 
-    def ready(self):
+    def ready(self) -> None:
+        # Must import here even though we're not referencing it
+        from calibration.views.email_verification_views import mark_email_verified
+        _ = mark_email_verified  # Ensures import is used
 
         # -------------------------------------------------------------
         # Detect dev server or gunicorn

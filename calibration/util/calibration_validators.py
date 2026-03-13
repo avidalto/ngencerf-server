@@ -1760,3 +1760,14 @@ class GetTimeseriesDataResponseSerializer(GenericMessageResponseSerializer):
 ##################################
 class SlurmSubmitResponseSerializer(BaseSerializer):
     slurm_job_id = serializers.IntegerField(required=False, allow_null=False)
+
+
+##################################
+# Email validation
+##################################
+class SendVerificationEmailRequestSerializer(BaseSerializer):
+    new_email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
+
+
+class VerifyEmailConfirmRequestSerializer(BaseSerializer):
+    token = serializers.CharField(required=True, allow_blank=False)

@@ -32,6 +32,7 @@ class CustomUser(AbstractUser):
         }
     )
     username = models.CharField(max_length=255, blank=True, null=True)  # Make username optional
+    email_verified = models.BooleanField(default=False)
 
     objects = CustomUserManager()
 

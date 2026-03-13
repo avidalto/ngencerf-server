@@ -18,14 +18,7 @@ from dotenv import load_dotenv
 
 from calibration.enums_vanilla import NgenEnvironmentEnum, ScriptEnum, JobType
 
-DJANGO_START_TIME = datetime.now(tz=timezone.utc)
-
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = str(os.getenv('DJANGO_DEBUG', 'true')).lower() == 'true'
 
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 print(f'Loading values from {dotenv_path}')
@@ -34,6 +27,25 @@ load_dotenv(dotenv_path)
 version_path = os.path.join(BASE_DIR, 'version.env')
 print(f'Loading values from {version_path}')
 load_dotenv(version_path)
+
+DJANGO_START_TIME = datetime.now(tz=timezone.utc)
+
+# EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
+
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")  # your Gmail address
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")  # Gmail app password
+
+DEFAULT_FROM_EMAIL = "pakronenberg@gmail.com"
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = str(os.getenv('DJANGO_DEBUG', 'true')).lower() == 'true'
 
 NGENCERF_VERSION = os.getenv("NGENCERF_VERSION", "<unknown>")
 NGENCERF_DATE = os.getenv("NGENCERF_DATE", "<unknown>")
@@ -72,7 +84,10 @@ INSTALLED_APPS = [
 TOKEN_MODEL = None
 
 REST_FRAMEWORK = {
-    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+        "calibration.auth.permissions.IsEmailVerifiedOrAllowed"
+    ),
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.TokenAuthentication",
@@ -149,12 +164,20 @@ CACHES = {
 
 AUTH_USER_MODEL = 'calibration.CustomUser'
 
+EMAIL_FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+EMAIL_SITE_NAME = os.getenv("SITE_NAME", "NgenCerf")
+
 DJOSER = {
-    "SEND_CONFIRMATION_EMAIL": False,
-    "SEND_ACTIVATION_EMAIL": False,
+    "SEND_ACTIVATION_EMAIL": True,
+    "SITE_NAME": EMAIL_SITE_NAME,
+
+    # Endpoint needs to post {uid, token} to (/users/activation/
+    "ACTIVATION_URL": "activate?uid={uid}&token={token}",
+    "PASSWORD_RESET_CONFIRM_URL": "reset-password-confirm?uid={uid}&token={token}",
+
     "SET_PASSWORD_RETYPE": True,
     "UPDATE_LAST_LOGIN": True,
-    "PASSWORD_RESET_CONFIRM_URL": "reset-password-confirm/{uid}/{token}",
+
     "SERIALIZERS": {
         "user_create": "calibration.user_serializers.CustomUserCreateSerializer",
         "user": "calibration.user_serializers.CustomUserSerializer",

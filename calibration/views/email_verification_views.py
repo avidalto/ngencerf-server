@@ -1,0 +1,377 @@
+import hashlib
+import logging
+from urllib.parse import unquote
+
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.core import signing
+from django.core.mail import send_mail
+from django.dispatch import receiver
+from djoser.signals import user_activated
+from drf_spectacular.utils import extend_schema, OpenApiResponse
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.request import Request
+from rest_framework.response import Response
+
+from calibration.util.calibration_validators import ErrorResponseSerializer, SendVerificationEmailRequestSerializer, \
+    VerifyEmailConfirmRequestSerializer
+from calibration.views.called_from import get_caller_name
+from calibration.views.common import handle_exceptions, get_user_email, validate_request, get_elapsed_str
+
+logger = logging.getLogger(__name__)
+
+User = get_user_model()
+
+EMAIL_VERIFY_SALT = "cerf.email.verify.v1"
+EMAIL_VERIFY_MAX_AGE_SECONDS = 60 * 60 * 24  # 24h
+
+
+def _token_fingerprint(token: str) -> str:
+    """
+    Produce a short, non-reversible identifier for correlating token-related logs.
+
+    :param token: Raw token string.
+    :return: Short hash prefix string.
+    """
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:12]
+
+
+def _normalize_token_for_signing(token: str) -> str:
+    """
+    Normalize a token coming from a URL/query param.
+
+    Common failure modes:
+    - Token is percent-encoded (contains %XX) and never decoded before POST.
+      Example: ":" becomes "%3A", "/" becomes "%2F", "+" can become "%2B", etc.
+    - Token is decoded twice or encoded twice.
+    - Token has leading/trailing whitespace.
+
+    This normalizes the token while trying to avoid altering already-correct tokens.
+
+    :param token: Incoming token string.
+    :return: Normalized token string suitable for signing.loads().
+    """
+    token = (token or "").strip()
+
+    # If it contains percent-encoding, decode once.
+    # "Percent-encoded" means URL-escaping: characters are encoded as %XX hex sequences.
+    # This often happens when a token is read from a querystring and then POSTed without decoding.
+    if "%" in token:
+        decoded_once = unquote(token)
+
+        # Heuristic: if it *still* contains percent-encoding after one decode, decode again.
+        # This handles accidental double-encoding.
+        if "%" in decoded_once:
+            decoded_twice = unquote(decoded_once)
+            return decoded_twice.strip()
+
+        return decoded_once.strip()
+
+    return token
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Djoser activation -> mark email_verified
+# ──────────────────────────────────────────────────────────────────────────────
+
+@receiver(user_activated)
+def mark_email_verified(_sender, user, _request, **_kwargs):
+    """
+    Called after Djoser account activation completes.
+
+    This is ONLY for the initial registration activation email (Djoser flow).
+    It marks the account as verified in our application-level flag (email_verified).
+
+    Important:
+    - We are NOT using is_active=False/True as the enforcement mechanism.
+    - Users can log in before verification.
+    - API access is gated by IsEmailVerifiedOrAllowed until email_verified=True.
+
+    :param _sender: Unused. Provided by Djoser signal.
+    :param user: The activated user instance.
+    :param _request: Unused. Provided by Djoser signal.
+    :param _kwargs: Unused signal kwargs.
+    :return: None
+    """
+    if not getattr(user, "email_verified", False):
+        user.email_verified = True
+        user.save(update_fields=["email_verified"])
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Token helpers (custom signed-token verification flow)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _make_email_verify_token(*, user_id: int, email: str) -> str:
+    """
+    Create a signed, time-limited verification token for a user/email pair.
+
+    This token is ONLY used for the custom verification flow:
+      - resend verification email, and/or
+      - change email then verify the new email
+
+    It is embedded in a verification link sent via email, then later posted back
+    to verify_email_confirm.
+
+    :param user_id: ID of the user requesting verification.
+    :param email: Email address to be verified (current or requested new email).
+    :return: URL-safe signed token string.
+    """
+    payload = {"user_id": user_id, "email": email}
+    token = signing.dumps(payload, salt=EMAIL_VERIFY_SALT)
+
+    logger.info("Email verify token issued: user_id=%s email=%r", user_id, email)
+
+    return token
+
+
+def _load_email_verify_token(token: str) -> dict:
+    """
+    Validate and decode a signed verification token.
+
+    Raises signing.SignatureExpired if token is older than EMAIL_VERIFY_MAX_AGE_SECONDS,
+    and signing.BadSignature if the token is invalid/tampered.
+
+    :param token: Signed token string from the verification link.
+    :return: Decoded payload dict containing at least {"user_id": ..., "email": ...}.
+    :raises signing.SignatureExpired: If token exceeded max_age.
+    :raises signing.BadSignature: If token is invalid/tampered.
+    """
+    raw_token = token or ""
+    normalized_token = _normalize_token_for_signing(raw_token)
+
+    # "percent_encoded" means the token contains URL-escaped %XX sequences (e.g. "%3A").
+    # If the frontend POSTs the querystring value without decoding it first, the signature won't match.
+    percent_encoded = "%" in raw_token
+
+    # "normalized_changed" indicates we altered the incoming string (strip and/or unquote once/twice).
+    # If this flips to True often, it points to a frontend token handling bug.
+    normalized_changed = normalized_token != raw_token.strip()
+
+    logger.info(
+        "Email verify token load: percent_encoded=%s normalized_changed=%s",
+        percent_encoded,
+        normalized_changed,
+    )
+
+    try:
+        payload = signing.loads(
+            normalized_token,
+            salt=EMAIL_VERIFY_SALT,
+            max_age=EMAIL_VERIFY_MAX_AGE_SECONDS,
+        )
+        logger.info(
+            "Email verify token OK: keys=%s",
+            sorted(payload.keys()) if isinstance(payload, dict) else type(payload).__name__,
+        )
+        return payload
+
+    except signing.SignatureExpired:
+        logger.warning("Email verify token expired")
+        raise
+
+    except signing.BadSignature:
+        logger.warning("Email verify token invalid (bad signature)")
+        raise
+
+
+@extend_schema(
+    request=SendVerificationEmailRequestSerializer,
+    responses={
+        204: OpenApiResponse(description="Verification email sent"),
+        400: OpenApiResponse(
+            response=ErrorResponseSerializer,
+            description="Validation error or parsing error",
+        ),
+        500: OpenApiResponse(
+            response=ErrorResponseSerializer,
+            description="Internal server error",
+        ),
+    },
+    description="Send a signed verification email for current email or a requested new email",
+)
+@api_view(["POST"])
+@handle_exceptions
+@permission_classes([IsAuthenticated])
+def send_verification_email(request: Request) -> Response:
+    """
+    Send an email verification link to the user's current email or a new email.
+
+    Called by the UI when:
+    - The user is unverified and clicks "resend verification", OR
+    - The user wants to change email and verify the new email.
+
+    Notes about which email is used:
+    - The user always has a "current email" stored on the account (user.email).
+    - The UI may also provide a "new email" (new_email) to replace the current email.
+    - The email we are sending to / verifying ("target email") is:
+        - new_email, if provided
+        - otherwise the current email
+
+    Request body:
+      - new_email (optional): if provided, send verification to this email; otherwise verify current user.email
+
+    Response:
+      - 204 No Content on success
+
+    :param request: DRF Request (authenticated).
+    :return: 204 No Content on success.
+    :raises ValidationError: If there is no usable email to verify.
+    """
+    data = request.data
+    logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
+
+    validator, error_return = validate_request(SendVerificationEmailRequestSerializer, data)
+    if error_return:
+        return error_return
+
+    user = request.user
+
+    # Current email already stored on the user record.
+    current_email = (getattr(user, "email", "") or "").strip()
+
+    # Optional new email provided by UI when user wants to change email.
+    requested_new_email = (validator.get("new_email") or "").strip()
+
+    # The email address we will actually send to / verify.
+    target_email = requested_new_email or current_email
+
+    if not target_email:
+        # Defensive fallback. In this system, email is required, so this should not occur
+        # unless the database contains legacy/bad rows or the user record is corrupted.
+        raise ValidationError({"new_email": ["No email available to verify."]})
+
+    # Create signed verification token bound to (user_id, target_email).
+    # This token is later POSTed to verify_email_confirm.
+    token = _make_email_verify_token(user_id=int(user.id), email=target_email)
+
+    # UI route that will call verify_email_confirm with the token.
+    verify_url = f"{settings.EMAIL_FRONTEND_URL.rstrip('/')}/auth/verify-email?token={token}"
+
+    subject = f"Verify your email address for {settings.EMAIL_SITE_NAME}"
+    body = (
+        "Click the link to verify your email address:\n\n"
+        f"{verify_url}\n\n"
+        "If you did not request this, you can ignore this email."
+    )
+
+    send_mail(
+        subject=subject,
+        message=body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[target_email],
+        fail_silently=False,
+    )
+
+    logger.info(
+        "Sent verification email: user_id=%s current_email=%r target_email=%r new_email_provided=%s",
+        user.id,
+        current_email,
+        target_email,
+        bool(requested_new_email),
+    )
+
+    logger.debug(f'Returning to {get_user_email(request)} from {get_caller_name()}(){get_elapsed_str(request)}')
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@extend_schema(
+    request=VerifyEmailConfirmRequestSerializer,
+    responses={
+        204: OpenApiResponse(description="Email verified"),
+        400: OpenApiResponse(
+            response=ErrorResponseSerializer,
+            description="Validation error or parsing error",
+        ),
+        500: OpenApiResponse(
+            response=ErrorResponseSerializer,
+            description="Internal server error",
+        ),
+    },
+    description="Confirm a signed verification token (used for resend verification and email changes)",
+)
+@api_view(["POST"])
+@handle_exceptions
+@permission_classes([AllowAny])
+def verify_email_confirm(request: Request) -> Response:
+    """
+    Confirm an email verification token and mark the user's email as verified.
+
+    Called by the UI when the user clicks the signed-token verification link in their email.
+    The UI extracts the token from the URL and POSTs it to this endpoint.
+
+    Request body:
+      - token: signed token containing {user_id, email}
+
+    Behavior:
+      - Loads and validates the signed token (including expiry).
+      - Fetches the user by user_id from the token.
+      - If token email differs from the user's current email, updates user.email
+        (and user.username if you maintain username=email).
+      - Sets user.email_verified=True.
+
+    Response:
+      - 204 No Content on success
+
+    :param request: DRF Request (unauthenticated allowed).
+    :return: 204 No Content on success.
+    :raises ValidationError: If token is missing/invalid/expired or user not found.
+    """
+    data = request.data
+    logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
+
+    validator, error_return = validate_request(VerifyEmailConfirmRequestSerializer, data)
+    if error_return:
+        return error_return
+
+    token = (validator.get("token") or "").strip()
+
+    try:
+        payload = _load_email_verify_token(token)
+    except signing.SignatureExpired:
+        raise ValidationError({"token": ["Token expired."]})
+    except signing.BadSignature:
+        raise ValidationError({"token": ["Invalid token."]})
+
+    user_id = payload.get("user_id")
+    email = (payload.get("email") or "").strip()
+
+    if not user_id or not email:
+        raise ValidationError({"token": ["Invalid token payload."]})
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        raise ValidationError({"token": ["User not found."]})
+
+    update_fields: list[str] = []
+
+    # If the token email differs from the stored email, treat this as "change email + verify".
+    if (getattr(user, "email", "") or "").strip().lower() != email.lower():
+        user.email = email
+        update_fields.append("email")
+
+        # Keep username==email
+        if hasattr(user, "username"):
+            user.username = email
+            update_fields.append("username")
+
+    if not getattr(user, "email_verified", False):
+        user.email_verified = True
+        update_fields.append("email_verified")
+
+    if update_fields:
+        user.save(update_fields=update_fields)
+
+    logger.info(
+        "Email verified via signed token: user_id=%s email=%r changed_email=%s",
+        user.id,
+        user.email,
+        "email" in update_fields,
+    )
+
+    logger.debug(f'Returning to {get_user_email(request)} from {get_caller_name()}(){get_elapsed_str(request)}')
+    return Response(status=status.HTTP_204_NO_CONTENT)

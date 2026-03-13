@@ -14,25 +14,31 @@ class CustomUserCreateSerializer(UserCreateSerializer):
     class Meta(UserCreateSerializer.Meta):
         model = User
         fields = ("id", "email", "first_name", "last_name", "password")
-        extra_kwargs = {'password': {'write_only': True}}
+        extra_kwargs = {"password": {"write_only": True}}
 
     def create(self, validated_data):
         # Automatically set username to email
-        validated_data['username'] = validated_data['email']
+        validated_data["username"] = validated_data["email"]
 
-        # Call the base implementation of create to ensure password hashing and other logic is applied
-        user = super().create(validated_data)
-
-        return user
+        return super().create(validated_data)
 
 
 class CustomUserSerializer(UserSerializer):
+    email_verified = serializers.BooleanField(read_only=True)
+
     class Meta(UserSerializer.Meta):
         model = User
-        fields = ("first_name", "last_name")
+        fields = ("id", "email", "first_name", "last_name", "email_verified")
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token["email"] = user.email
+        token["email_verified"] = bool(getattr(user, "email_verified", False))
+        return token
 
     def validate(self, attrs):
         # Snapshot incoming keys/values safely
@@ -42,7 +48,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         # Never log password; only log whether it was supplied
         logger.info(
-            "JWT login attempt: login_field=%s provided_keys=%s identifier=%r password_supplied=%s",
+            "JWT login attempt: login_field=%s, provided_keys=%s, identifier=%r, password_supplied=%s",
             login_field,
             provided_keys,
             raw_identifier,
@@ -71,6 +77,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 logger.exception("JWT login precheck failed for %s=%r", login_field, raw_identifier)
 
         try:
+            # data: [dict, Any] = super().validate(attrs)
+
             data = super().validate(attrs)
 
         except AuthenticationFailed as e:
@@ -102,14 +110,19 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         # Success
         logger.info(
-            "JWT login success: user_id=%s %s=%r is_active=%s is_staff=%s",
+            "JWT login success: user_id=%s, %s=%r, is_active=%s, email_verified=%s, is_staff=%s",
             getattr(self.user, "id", None),
             login_field,
             getattr(self.user, login_field, None),
             getattr(self.user, "is_active", None),
+            getattr(self.user, "email_verified", None),
             getattr(self.user, "is_staff", None),
         )
 
         data["first_name"] = self.user.first_name
         data["last_name"] = self.user.last_name
+
+        data["email_verified"] = bool(getattr(self.user, "email_verified", False))  # type: ignore
+        data["email"] = self.user.email
+
         return data
