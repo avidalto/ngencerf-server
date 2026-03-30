@@ -126,12 +126,16 @@ class GenericMessageResponseSerializer(BaseSerializer):
     message = serializers.CharField(required=True)
 
 
-class GenericMessageWithIdResponseSerializer(GenericMessageResponseSerializer):
-    calibration_run_id = serializers.IntegerField(required=True)
+class CalibrationRunSerializer(BaseSerializer):
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
+
+
+class GenericMessageWithIdResponseSerializer(GenericMessageResponseSerializer, CalibrationRunSerializer):
+    pass
 
 
 class DataValidationResponseSerializer(GenericMessageResponseSerializer):
-    data_validation_id = serializers.IntegerField(required=True)
+    data_validation_id = serializers.IntegerField(required=True, min_value=1)
 
 
 class GenericMessageAndStatusResponseSerializer(GenericMessageResponseSerializer):
@@ -140,43 +144,39 @@ class GenericMessageAndStatusResponseSerializer(GenericMessageResponseSerializer
 
 
 class GenericResponseSerializer(GenericMessageAndStatusResponseSerializer):
-    calibration_run_id = serializers.IntegerField(required=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
 
 
 class GenericResponseSerializerWithValidator(GenericMessageAndStatusResponseSerializer):
-    validation_run_id = serializers.IntegerField(required=False)
-
-
-class CalibrationRunSerializer(BaseSerializer):
-    calibration_run_id = serializers.IntegerField(required=True)
+    validation_run_id = serializers.IntegerField(required=False, min_value=1)
 
 
 class ColdStartRunSerializer(BaseSerializer):
-    cold_start_run_id = serializers.IntegerField(required=True)
+    cold_start_run_id = serializers.IntegerField(required=True, min_value=1)
 
 
 class ForecastRunSerializer(BaseSerializer):
-    forecast_run_id = serializers.IntegerField(required=True)
+    forecast_run_id = serializers.IntegerField(required=True, min_value=1)
 
 
 class HindcastRunSerializer(BaseSerializer):
-    hindcast_run_id = serializers.IntegerField(required=True)
+    hindcast_run_id = serializers.IntegerField(required=True, min_value=1)
 
 
 class VerificationRunSerializer(BaseSerializer):
-    verification_run_id = serializers.IntegerField(required=True)
+    verification_run_id = serializers.IntegerField(required=True, min_value=1)
 
 
 class DeleteForecastRunResponseSerializer(GenericMessageResponseSerializer):
-    forecast_run_id = serializers.IntegerField(required=True)
+    forecast_run_id = serializers.IntegerField(required=True, min_value=1)
 
 
 class DeleteHindcastRunResponseSerializer(GenericMessageResponseSerializer):
-    hindcast_run_id = serializers.IntegerField(required=True)
+    hindcast_run_id = serializers.IntegerField(required=True, min_value=1)
 
 
 class CalibrationRunIdList(BaseSerializer):
-    calibration_run_ids = serializers.ListField(child=serializers.IntegerField(), required=True)
+    calibration_run_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), required=True)
 
 
 class GetStatusForComparisonRequestSerializer(CalibrationRunIdList):
@@ -184,13 +184,13 @@ class GetStatusForComparisonRequestSerializer(CalibrationRunIdList):
 
 
 class ValidationRunSerializer(BaseSerializer):
-    validation_run_id = serializers.IntegerField(required=True)
+    validation_run_id = serializers.IntegerField(required=True, min_value=1)
 
 
 # TODO Do we still need this after we've fully implemented Forecast
 class CalibrationOrValidationRunSerializer(BaseSerializer):
-    calibration_run_id = serializers.IntegerField(required=False, allow_null=True)
-    validation_run_id = serializers.IntegerField(required=False, allow_null=True)
+    calibration_run_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+    validation_run_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
 
     def validate(self, data):
         calibration_run_id = data.get('calibration_run_id')
@@ -206,12 +206,12 @@ class CalibrationOrValidationRunSerializer(BaseSerializer):
 
 
 class CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSerializer(BaseSerializer):
-    calibration_run_id = serializers.IntegerField(required=False, allow_null=False)
-    validation_run_id = serializers.IntegerField(required=False, allow_null=False)
-    forecast_run_id = serializers.IntegerField(required=False, allow_null=False)
-    hindcast_run_id = serializers.IntegerField(required=False, allow_null=False)
-    cold_start_run_id = serializers.IntegerField(required=False, allow_null=False)
-    verification_run_id = serializers.IntegerField(required=False, allow_null=False)
+    calibration_run_id = serializers.IntegerField(required=False, allow_null=False, min_value=1)
+    validation_run_id = serializers.IntegerField(required=False, allow_null=False, min_value=1)
+    forecast_run_id = serializers.IntegerField(required=False, allow_null=False, min_value=1)
+    hindcast_run_id = serializers.IntegerField(required=False, allow_null=False, min_value=1)
+    cold_start_run_id = serializers.IntegerField(required=False, allow_null=False, min_value=1)
+    verification_run_id = serializers.IntegerField(required=False, allow_null=False, min_value=1)
 
     def validate(self, data):
         """
@@ -221,19 +221,20 @@ class CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSer
         validation_run_id = data.get('validation_run_id')
         cold_start_run_id = data.get('cold_start_run_id')
         forecast_run_id = data.get('forecast_run_id')
+        hindcast_run_id = data.get('hindcast_run_id')
         verification_run_id = data.get('verification_run_id')
 
         # Collect the IDs that are specified (non-null and non-zero values)
         specified_ids = [
             id_value
-            for id_value in [calibration_run_id, validation_run_id, cold_start_run_id, forecast_run_id, verification_run_id]
+            for id_value in [calibration_run_id, validation_run_id, cold_start_run_id, forecast_run_id, hindcast_run_id, verification_run_id]
             if id_value is not None
         ]
 
         # Check that exactly one ID is specified
         if len(specified_ids) != 1:
             raise serializers.ValidationError(
-                "You must specify exactly one of 'calibration_run_id', 'validation_run_id', 'cold_start_run_id', 'forecast_run_id' or 'verification_run_id'."
+                "You must specify exactly one of 'calibration_run_id', 'validation_run_id', 'cold_start_run_id', 'forecast_run_id', 'hindcast_run_id' or 'verification_run_id'."
             )
 
         return data
@@ -251,7 +252,7 @@ class CancelJobResponseSerializer(GenericMessageAndStatusResponseSerializer,
 
 
 class CreateValidationRequestSerializer(CalibrationRunSerializer):
-    iteration_id = serializers.IntegerField(required=True)
+    iteration_id = serializers.IntegerField(required=True, min_value=1)
 
 
 class LoggingConfigSerializer(BaseSerializer):
@@ -321,7 +322,7 @@ class CreateHindcastRequestSerializer(CalibrationRunSerializer):
     interval_cycle = serializers.ChoiceField(choices=[1, 3, 6, 12, 18, 24], required=True)
     num_iterations = serializers.IntegerField(required=True, allow_null=False, validators=[MinValueValidator(1)])
     cold_start_date = serializers.DateTimeField(required=False, allow_null=True)
-    cold_start_run_id = serializers.IntegerField(required=False, allow_null=True)
+    cold_start_run_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     logging_config = LoggingConfigSerializer(required=False)
 
 
@@ -490,7 +491,7 @@ class ValidationStatusSerializer(ValidationRunSerializer):
 
 
 class CalibrationJobsResponseSerializer(BaseSerializer):
-    calibration_run_id = serializers.IntegerField(required=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
     gage_id = serializers.CharField(required=True, allow_null=True)
     domain_name = serializers.CharField(required=True, allow_null=True)
     job_genesis = serializers.CharField(required=True, validators=[enum_validator(JobGenesis)])
@@ -538,7 +539,7 @@ class LoadCalibrationJobSerializer(CalibrationRunSerializer):
 
 
 class JobElement(GenericMessageResponseSerializer):
-    calibration_run_id = serializers.IntegerField(required=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
     success = serializers.BooleanField(required=True, allow_null=False)
 
 
@@ -560,7 +561,7 @@ def validate_automatic_validation(value):
 
 
 class LoadCalibrationRunResponseSerializer(BaseSerializer):
-    calibration_run_id = serializers.IntegerField(required=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
     last_updated_on = serializers.DateTimeField(required=True)
     job_data_dir = serializers.CharField(required=True)
     submit_date = serializers.DateTimeField(required=True, allow_null=True)
@@ -686,9 +687,9 @@ class DateFilterSerializer(serializers.Serializer):
 class IdFilterSerializer(serializers.Serializer):
     """Filter by id using 'before', 'after' or 'between' logic."""
     operator = serializers.ChoiceField(choices=['before', 'after', 'between'], required=False, allow_blank=True)
-    id = serializers.IntegerField(required=False, allow_null=True)
-    start_id = serializers.IntegerField(required=False, allow_null=True)
-    end_id = serializers.IntegerField(required=False, allow_null=True)
+    id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+    start_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+    end_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
 
     def validate(self, attrs):
         operator = (attrs.get("operator") or "").lower()
@@ -781,12 +782,11 @@ class GageIdSerializer(BaseSerializer):
 
 
 class GetValidationJobsRequestSerializer(BaseSerializer):
-    validation_run_id = serializers.IntegerField(required=True)
+    validation_run_id = serializers.IntegerField(required=True, min_value=1)
     include_validations = serializers.BooleanField(required=False, default=False)
 
 
-class SaveGageRequestSerializer(BaseSerializer):
-    calibration_run_id = serializers.IntegerField(required=True)
+class SaveGageRequestSerializer(CalibrationRunSerializer):
     gage_id = serializers.CharField(required=False, allow_blank=False)
     job_name = serializers.CharField(required=False, allow_blank=False, validators=[no_space_validator])
     forcing_source_requested = serializers.CharField(required=False, allow_null=True, validators=[enum_validator(ForcingSourceEnum)])
@@ -867,36 +867,36 @@ class UpdateGageStatusResponseSerializer(GenericMessageResponseSerializer):
 
 
 class CreateCalibrationRunResponseSerializer(GenericMessageResponseSerializer):
-    calibration_run_id = serializers.IntegerField(required=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
     job_data_dir = serializers.CharField(required=True)
 
 
 class CreateAndRunValidationResponseSerializer(GenericResponseSerializer):
-    validation_run_id = serializers.IntegerField(required=True)
+    validation_run_id = serializers.IntegerField(required=True, min_value=1)
     submit_date = serializers.DateTimeField(required=True, allow_null=False)
 
 
 class CreateAndRunColdStartResponseSerializer(BaseSerializer):
     message = serializers.CharField(required=True)
-    calibration_run_id = serializers.IntegerField(required=True)
-    coldstart_run_id = serializers.IntegerField(required=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
+    cold_start_run_id = serializers.IntegerField(required=True, min_value=1)
     submit_date = serializers.DateTimeField(required=True, allow_null=False)
     cold_start_status = serializers.CharField(required=True, validators=[enum_validator(StatusEnum, allow_blank=False)])
 
 
 class CreateAndRunForecastResponseSerializer(BaseSerializer):
     message = serializers.CharField(required=True)
-    calibration_run_id = serializers.IntegerField(required=True)
-    forecast_run_id = serializers.IntegerField(required=True)
-    cold_start_run_id = serializers.IntegerField(required=True, allow_null=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
+    forecast_run_id = serializers.IntegerField(required=True, min_value=1)
+    cold_start_run_id = serializers.IntegerField(required=True, allow_null=True, min_value=1)
     submit_date = serializers.DateTimeField(required=True, allow_null=False)
 
 
 class CreateAndRunHindcastResponseSerializer(BaseSerializer):
     message = serializers.CharField(required=True)
-    calibration_run_id = serializers.IntegerField(required=True)
-    hindcast_run_id = serializers.IntegerField(required=True)
-    cold_start_run_id = serializers.IntegerField(required=True, allow_null=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
+    hindcast_run_id = serializers.IntegerField(required=True, min_value=1)
+    cold_start_run_id = serializers.IntegerField(required=True, allow_null=True, min_value=1)
     submit_date = serializers.DateTimeField(required=True, allow_null=False)
 
 
@@ -948,8 +948,8 @@ class PaginationMetadataSerializer(BaseSerializer):
 
 
 class GetPlotResponseSerializer(CalibrationRunSerializer):
-    validation_run_id = serializers.IntegerField(required=False)
-    forecast_run_id = serializers.IntegerField(required=False)
+    validation_run_id = serializers.IntegerField(required=False, min_value=1)
+    forecast_run_id = serializers.IntegerField(required=False, min_value=1)
     plot_name = serializers.CharField(required=True, allow_null=False)
     plot_file_path = serializers.CharField(required=False, allow_null=False)
     plot_url = serializers.CharField(required=False, allow_null=False)
@@ -958,17 +958,17 @@ class GetPlotResponseSerializer(CalibrationRunSerializer):
 
 
 class ForecastRunDataResponseSerializer(BaseSerializer):
-    forecast_run_id = serializers.IntegerField(required=True)
+    forecast_run_id = serializers.IntegerField(required=True, min_value=1)
     timeseries_data = serializers.JSONField(required=True)
 
 
 class GetPlotErrorResponseSerializer(BaseSerializer):
-    calibration_run_id = serializers.IntegerField(required=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
     message = serializers.CharField(required=True)
 
 
 class GetPlotForComparisonResponseSerializer(GetPlotResponseSerializer):
-    calibration_run_id = serializers.IntegerField(required=False)
+    calibration_run_id = serializers.IntegerField(required=False, min_value=1)
 
 
 class GetPlotsForComparisonResponseSerializer(CalibrationRunIdList):
@@ -1050,7 +1050,7 @@ def validate_module_properties_against_modules(
 
 
 class SaveFormulationRequestSerializer(BaseSerializer):
-    calibration_run_id = serializers.IntegerField(required=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
     modules = serializers.ListField(child=ModuleNameField(required=True), required=False, allow_empty=True, default=list)
     use_sloth = serializers.BooleanField(required=True)
     sloth_parameters = SlothParameters(required=False, many=True)
@@ -1127,7 +1127,7 @@ class ValidateParametersResponseSerializer(BaseSerializer):
 
 
 class UploadUserParameterFile(BaseSerializer):
-    calibration_run_id = serializers.IntegerField(required=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
     user_parameter_file = serializers.FileField(required=True)
 
     def validate_user_parameter_file(self, value):
@@ -1148,7 +1148,7 @@ class ParameterFileSerializer(BaseSerializer):
 
 class UserParameterFileUploadResponse(BaseSerializer):
     message = serializers.CharField(required=True)
-    calibration_run_id = serializers.IntegerField(required=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
     user_parameter_file = ParameterFileSerializer(many=True, required=True)
 
 
@@ -1187,7 +1187,7 @@ class ModuleDataListSerializer(BaseSerializer):
 
 
 class SaveTuningRequestSerializer(BaseSerializer):
-    calibration_run_id = serializers.IntegerField(required=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
     parameters = SaveTuningParametersSerializer(many=True, required=False)
     calibration_times = CalibrationTimeControls(required=False, allow_empty=False)
     validation_times = ValidationTimeControls(required=False, allow_empty=False)
@@ -1200,7 +1200,7 @@ class SaveTuningResponseSerializer(GenericResponseSerializer):
 
 
 class LoadTuningResponseSerializer(BaseSerializer):
-    calibration_run_id = serializers.IntegerField(required=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
     modules = ModuleMetadataStaticSerializer(many=True, required=False)
     time_range = TimeRangeSerializerAllowEmpty(required=True)
     calibration_times = CalibrationTimeControls(required=False, allow_empty=True)
@@ -1214,7 +1214,7 @@ class LoadTuningResponseSerializer(BaseSerializer):
 
 
 class SaveOptimizationRequestSerializer(BaseSerializer):
-    calibration_run_id = serializers.IntegerField(required=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
     optimization_inputs = OptimizationInputsSerializer(many=True, required=False)
     optimization = serializers.CharField(allow_blank=False, required=False, validators=[enum_validator(OptimizationEnum)])
     objective_function = serializers.CharField(allow_blank=False, required=False)
@@ -1275,7 +1275,7 @@ class PerformanceMetricsSerializer(BaseSerializer):
 
 
 class CommonStatusFieldsMixin(serializers.Serializer):
-    calibration_run_id = serializers.IntegerField(required=False)
+    calibration_run_id = serializers.IntegerField(required=False, min_value=1)
     job_name = serializers.CharField(required=False)
     status = serializers.CharField(validators=[enum_validator(StatusEnum, allow_blank=False)], required=True)
     failure_messages = serializers.ListField(child=serializers.DictField(), required=False)
@@ -1294,7 +1294,7 @@ class GetStatusForValidationResponseSerializer(CommonStatusFieldsMixin, Validati
 
 
 class GetStatusColdStartSerializer(BaseSerializer):
-    cold_start_run_id = serializers.IntegerField(required=True)
+    cold_start_run_id = serializers.IntegerField(required=True, min_value=1)
     cold_start_date = serializers.DateTimeField(required=True)
     status = serializers.CharField(required=True)
     submit_date = serializers.DateTimeField(required=False, allow_null=True)
@@ -1320,19 +1320,19 @@ class GetStatusForCalibrationResponseSerializer(GenericResponseSerializer, Commo
 
 
 class VerificationJobSerializer(BaseSerializer):
-    verification_run_id = serializers.IntegerField(required=True)
+    verification_run_id = serializers.IntegerField(required=True, min_value=1)
 
 
 class GetStatusForVerificationResponseSerializer(CommonStatusFieldsMixin, CalibrationRunSerializer):
     message = serializers.CharField(required=True)
-    verification_run_id = serializers.IntegerField(required=True)
+    verification_run_id = serializers.IntegerField(required=True, min_value=1)
     forecast_run = GetStatusForForecastResponseSerializer(required=False, allow_null=True)
 
 
 class GetVerificationJobResponseSerializer(CommonStatusFieldsMixin):
-    verification_run_id = serializers.IntegerField(required=True)
+    verification_run_id = serializers.IntegerField(required=True, min_value=1)
     forecast_run = GetStatusForForecastResponseSerializer(required=False, allow_null=True)
-    forecast_run_id = serializers.IntegerField(required=True, allow_null=True)
+    forecast_run_id = serializers.IntegerField(required=True, allow_null=True, min_value=1)
 
 
 class GetVerificationJobsResponseSerializer(BaseSerializer):
@@ -1470,8 +1470,8 @@ class ColdStartJobsResponseSerializer(BaseSerializer):
 
 
 class ForecastJobsResponseSerializer(BaseSerializer):
-    calibration_run_id = serializers.IntegerField(required=True)
-    forecast_run_id = serializers.IntegerField(required=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
+    forecast_run_id = serializers.IntegerField(required=True, min_value=1)
     domain_name = serializers.CharField(required=True)
     configuration = serializers.CharField(required=True, validators=[enum_validator(ForecastConfigEnum)])
     cycle_date = serializers.DateTimeField(required=True, allow_null=False)
@@ -1501,20 +1501,20 @@ class GetColdStartJobsForConfigurationResponseSerializer(BaseSerializer):
 
 
 class CreateAndRunVerificationRequestSerializer(BaseSerializer):
-    forecast_run_id = serializers.IntegerField(required=False)
+    forecast_run_id = serializers.IntegerField(required=False, min_value=1)
     logging_config = LoggingConfigSerializer(required=False)
 
 
 class CreateAndRunVerificationResponseSerializer(GenericMessageResponseSerializer):
-    calibration_run_id = serializers.IntegerField(required=True)
-    forecast_run_id = serializers.IntegerField(required=True)
-    verification_run_id = serializers.IntegerField(required=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
+    forecast_run_id = serializers.IntegerField(required=True, min_value=1)
+    verification_run_id = serializers.IntegerField(required=True, min_value=1)
     status = serializers.CharField(validators=[enum_validator(StatusEnum, allow_blank=False)], required=True)
     submit_date = serializers.DateTimeField(required=True, allow_null=False)
 
 
 class GetVerificationStatusResponseSerializer(GenericMessageAndStatusResponseSerializer):
-    verification_run_id = serializers.IntegerField(required=True)
+    verification_run_id = serializers.IntegerField(required=True, min_value=1)
     status = serializers.CharField(validators=[enum_validator(StatusEnum, allow_blank=False)], required=True)
     warnings = serializers.ListField(required=False, child=serializers.CharField(required=True))
     errors = serializers.ListField(required=False, child=serializers.CharField(required=True))
@@ -1527,25 +1527,25 @@ class GetVerificationStatusResponseSerializer(GenericMessageAndStatusResponseSer
 
 
 class GetVerificationPlotNamesResponseSerializer(BaseSerializer):
-    verification_run_id = serializers.IntegerField(required=True)
+    verification_run_id = serializers.IntegerField(required=True, min_value=1)
     plot_names = PlotListStaticSerializer(many=True)
     status = serializers.CharField(required=True, validators=[enum_validator(StatusEnum, allow_blank=False)])
 
 
 class GetVerificationPlotRequestSerializer(BaseSerializer):
-    verification_run_id = serializers.IntegerField(required=True)
+    verification_run_id = serializers.IntegerField(required=True, min_value=1)
     plot_name = serializers.CharField(required=True, allow_null=False)
 
 
 class GetVerificationPlotResponseSerializer(BaseSerializer):
-    verification_run_id = serializers.IntegerField(required=True)
+    verification_run_id = serializers.IntegerField(required=True, min_value=1)
     plot_name = serializers.CharField(required=True, allow_null=False)
     plot_file_path = serializers.CharField(required=False, allow_null=False)
     plot_url = serializers.CharField(required=False, allow_null=False)
 
 
 class DeleteVerificationJobResponseSerializer(GenericMessageResponseSerializer):
-    verification_run_id = serializers.IntegerField(required=True)
+    verification_run_id = serializers.IntegerField(required=True, min_value=1)
 
 
 ##################################
@@ -1623,7 +1623,7 @@ class ImportDataSerializer(BaseSerializer):
 
 
 class ImportSerializer(BaseSerializer):
-    calibration_run_id = serializers.IntegerField(required=False)
+    calibration_run_id = serializers.IntegerField(required=False, min_value=1)
     data = ImportDataSerializer(required=True)
 
 
@@ -1631,7 +1631,7 @@ class ImportSerializer(BaseSerializer):
 # Misc
 ##################################
 class ReportIterationSerializer(BaseSerializer):
-    calibration_run_id = serializers.IntegerField(required=True)
+    calibration_run_id = serializers.IntegerField(required=True, min_value=1)
     iteration = serializers.IntegerField(required=True, min_value=0)
     worker_name = serializers.CharField(required=True)
     first_iteration_for_worker = serializers.BooleanField(required=True)
@@ -1688,7 +1688,7 @@ class MetricDataByIteration(BaseSerializer):
 class CalibrationDataByIteration(BaseSerializer):
     iteration_num = serializers.IntegerField(required=True, allow_null=False, min_value=0)
     iteration_id = serializers.IntegerField(required=True, allow_null=False)
-    validation_run_id = serializers.IntegerField(required=False)
+    validation_run_id = serializers.IntegerField(required=False, min_value=1)
     worker_name = serializers.CharField(required=True, allow_null=False, allow_blank=False)
     best_params = serializers.BooleanField(required=True, allow_null=False)
     objective_function_value = serializers.FloatField(required=True, allow_null=True)
@@ -1708,7 +1708,7 @@ class GetCalibrationDataByIterationResponseSerializer(GenericMessageResponseSeri
 
 
 class ValidationJobsResponseSerializer(BaseSerializer):
-    validation_run_id = serializers.IntegerField(required=True)
+    validation_run_id = serializers.IntegerField(required=True, min_value=1)
     submit_date = serializers.DateTimeField(required=True, allow_null=True)
     validation_type = serializers.CharField(required=True)
     iteration_num = serializers.IntegerField(required=True)
