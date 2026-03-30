@@ -7,7 +7,7 @@ from rest_framework.settings import api_settings
 from calibration.enums import DataTypeEnum, UnitsEnum, LocationEnum, ForcingSourceEnum, ObservationalSourceEnum, DomainEnum, StatusEnum, \
     OptimizationEnum, GeopackageSourceEnum, SlurmCallbackStatusEnum, JobGenesis, PlotDefinitionsEnum, ForecastConfigEnum, LogCategory, \
     NgenLogging
-from calibration.enums_vanilla import CalibrationSortField, VerificationSortField, ForecastSortField
+from calibration.enums_vanilla import CalibrationSortField, VerificationSortField, ForecastSortField, HindcastSortField
 from calibration.util.caching import get_cached_modules_with_groups
 
 
@@ -749,6 +749,10 @@ class ForecastSortSerializer(SortSerializer):
     field = serializers.CharField(required=False, allow_blank=False, validators=[enum_validator(ForecastSortField, allow_blank=False)])
 
 
+class HindcastSortSerializer(SortSerializer):
+    field = serializers.CharField(required=False, allow_blank=False, validators=[enum_validator(HindcastSortField, allow_blank=False)])
+
+
 class VerificationSortSerializer(SortSerializer):
     field = serializers.CharField(required=False, allow_blank=False, validators=[enum_validator(VerificationSortField, allow_blank=False)])
 
@@ -776,6 +780,10 @@ class CalibrationPaginationSerializer(PaginationSerializer):
 
 class ForecastPaginationSerializer(PaginationSerializer):
     sort = ForecastSortSerializer(required=False, allow_null=True)
+
+
+class HindcastPaginationSerializer(PaginationSerializer):
+    sort = HindcastSortSerializer(required=False, allow_null=True)
 
 
 class VerificationPaginationSerializer(PaginationSerializer):
@@ -889,8 +897,9 @@ class CreateAndRunColdStartResponseSerializer(CalibrationRunIdSerializer, ColdSt
     cold_start_status = serializers.CharField(required=True, validators=[enum_validator(StatusEnum, allow_blank=False)])
 
 
-class CreateAndRunForecastResponseSerializer(CalibrationRunIdSerializer, ForecastRunIdSerializer, ColdStartRunIdSerializer):
+class CreateAndRunForecastResponseSerializer(CalibrationRunIdSerializer, ForecastRunIdSerializer):
     message = serializers.CharField(required=True)
+    cold_start_run_id = serializers.IntegerField(required=True, allow_null=True, min_value=1)
     submit_date = serializers.DateTimeField(required=True, allow_null=False)
 
 

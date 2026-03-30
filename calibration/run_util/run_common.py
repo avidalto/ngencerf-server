@@ -37,6 +37,7 @@ from calibration.views.end_of_job_processing import read_validation_output, read
     read_cold_start_output, read_verification_output, read_hindcast_output
 from calibration.views.forecast_input import create_forecast_input
 from calibration.views.ngen_cal_input import ready_to_run
+from calibration.views.verification_input import create_verification_input
 from cerfServer.settings import NgenEnvironmentEnum
 
 logger = logging.getLogger(__name__)
@@ -400,7 +401,7 @@ def run_verification_job(verification_run: VerificationRun) -> None:
     execute_job(
         verification_run,
         {
-            'verification_config': get_verification_yaml_config_file(verification_run),
+            'verification_config': create_verification_input(verification_run),
         },
         stdout_file,
         simulate=settings.SIMULATE_FLAGS.get(JobType.VERIFICATION, False)

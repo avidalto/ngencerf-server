@@ -36,7 +36,6 @@ from calibration.util.ngen_locations import get_forecast_dir, get_output_calibra
     get_output_validation_run_dir, get_cold_start_dir, get_ngen_logging_file, \
     get_ngen_logging_basename, get_verification_run_dir, \
     get_hindcast_dir
-from calibration.views.verification_input import create_verification_input
 
 logger = logging.getLogger(__name__)
 
@@ -665,8 +664,6 @@ def create_verification_run_internal(forecast_run: ForecastRun) -> VerificationR
 
     os.makedirs(get_verification_run_dir(verification_run))
     logger.info(f"Creating {get_job_description(verification_run)}")
-
-    create_verification_input(verification_run)
 
     return verification_run
 

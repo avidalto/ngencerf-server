@@ -1,4 +1,5 @@
 import copy
+import logging
 from typing import Any
 
 import yaml
@@ -8,7 +9,9 @@ from calibration.util.caching import generate_forecast_config_yaml
 from calibration.util.ngen_locations import get_verification_run_dir, VERF_CROSSWALK_NGEN_FILE, get_forecast_output_file, \
     get_verification_yaml_config_file
 from calibration.views.called_from import called_from
-from calibration.views.common import logger, format_datetime
+from calibration.views.common import format_datetime
+
+logger = logging.getLogger(__name__)
 
 # DO NOT MODIFY THIS TEMPLATE IN-PLACE.
 # Use `copy.deepcopy(CONFIG_TEMPLATE)` to safely create per-thread instances.
@@ -74,12 +77,10 @@ CONFIG_TEMPLATE = {
 }
 
 
-def create_verification_input(run: VerificationRun) -> None:
+def create_verification_input(run: VerificationRun) -> str:
     """
     :param run: The VerificationRun instance to validate and prepare.
-    :return: A tuple (ErrorReport, config_file_path):
-             - error_object: ErrorReport object with errors and warnings.
-             - config_file_path: Path to the generated config file if build is successful, else None.
+    :return: Path to the generated config file.
     """
     logger.info(called_from())
 
@@ -107,13 +108,17 @@ def create_verification_input(run: VerificationRun) -> None:
     general['forecast_end_date'] = [format_datetime(run.forecast_run.cycle_date)]
     config['nwm_forecast']['data_source'] = 'ngenCERF'
     file_paths['crosswalk_file'] = {'ngen': VERF_CROSSWALK_NGEN_FILE}
-    file_paths['fcst_data_file'] = {}
-    file_paths['fcst_data_file'][run.forecast_run.calibration_run.job_name] = get_forecast_output_file(run.forecast_run)
+    file_paths['fcst_data_file'] = {
+        run.forecast_run.calibration_run.job_name: get_forecast_output_file(run.forecast_run)
+    }
 
     # -----------------------------
     # FILE WRITE PHASE
     # -----------------------------
     config_location = get_verification_yaml_config_file(run)
-    with open(config_location, 'w') as config_file:
+
+    with open(config_location, 'w', encoding='utf-8') as config_file:
         yaml.dump(config, config_file, default_flow_style=False)
         logger.info(f"Writing new YAML file to {config_location}")
+
+    return config_location

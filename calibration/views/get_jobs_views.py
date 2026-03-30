@@ -113,7 +113,7 @@ Filtering
 
 Sorting
     Sorting uses server-approved fields defined in Enum classes
-    (CalibrationSortField, ForecastSortField, VerificationSortField).
+    (CalibrationSortField, ForecastSortField, HindcastSortField, VerificationSortField).
     Multi-field sorts are supported.
 
 Pagination
@@ -146,7 +146,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from calibration.enums import GetValidationJobsScope, StatusEnum, ValidationType
-from calibration.enums_vanilla import CalibrationSortField, ForecastSortField, VerificationSortField
+from calibration.enums_vanilla import CalibrationSortField, ForecastSortField, VerificationSortField, HindcastSortField
 from calibration.models import CalibrationFormulation, CalibrationRun, ValidationRun, VerificationRun, CustomUser, IterationParameter, ForecastRun, \
     CalibrationStopCriteria, HindcastRun
 from calibration.models.base_run import BaseRun
@@ -156,7 +156,7 @@ from calibration.util.calibration_validators import ErrorResponseSerializer, \
     GetCalibrationJobIDsResponseSerializer, EmptySerializer, \
     GetGagesResponseSerializer, GetGagesRequestSerializer, GetCalibrationJobsSummaryResponseSerializer, GetValidationJobsResponseSerializer, \
     CalibrationRunIdSerializer, ForecastPaginationSerializer, GetForecastJobsResponseSerializer, GetVerificationJobsResponseSerializer, \
-    VerificationPaginationSerializer, GetHindcastJobsResponseSerializer
+    VerificationPaginationSerializer, GetHindcastJobsResponseSerializer, HindcastPaginationSerializer
 from calibration.views.calibration_download_views import downloadable_statuses
 from calibration.views.called_from import get_caller_name
 from calibration.views.common import handle_exceptions, validate_request, validate_response, truncate_large_fields, get_user_email, get_elapsed_str, \
@@ -691,7 +691,7 @@ def apply_verification_filters(query: Q, filters: dict) -> Q:
 
 def resolve_sort(
         sort: dict | None,
-        enum_class: Type[CalibrationSortField | ForecastSortField | VerificationSortField]
+        enum_class: Type[CalibrationSortField | ForecastSortField | HindcastSortField | VerificationSortField]
 ) -> list[str]:
     """
     Convert the validated client-provided sort object into a Django `order_by` argument list.
@@ -701,8 +701,9 @@ def resolve_sort(
     - Defaults to ['-id'] if no sort provided.
 
     This function translates the UI-provided sort configuration into the corresponding ORM field
-    name(s) used for ordering querysets. The mapping between user-facing fields and database columns
-    is defined by the respective Enum (e.g., CalibrationSortField, ForecastSortField, etc.).
+    name(s) used for ordering querysets.
+    The mapping between user-facing fields and database columns is defined by the respective Enum (e.g., CalibrationSortField,
+    ForecastSortField, HindcastSortField, VerificationSortField).
 
     Assumptions (enforced by upstream serializers and enum validators):
       - `sort["field"]` is a valid string representation of an existing enum member.
@@ -1887,6 +1888,7 @@ def _get_forecast_or_hindcast_base_jobs_internal(
         sort: dict[str, str] | None = None,
         response_id_key: str,
         response_status_key: str,
+        sort_enum: Type[ForecastSortField | HindcastSortField],
         include_hindcast_fields: bool = False,
 ) -> tuple[list[dict[str, Any]], int, list[Any], list[Any]]:
     """
@@ -1903,8 +1905,8 @@ def _get_forecast_or_hindcast_base_jobs_internal(
     :param limit: Optional maximum number of rows to return. If None, return all rows.
     :param offset: Optional number of rows to skip before returning results.
     :param filters: Optional dict of filter criteria (e.g. gage_id, status, modules).
-    :param sort: Optional dict { "field": one of ForecastSortField values,
-                                 "direction": "asc" or "desc" }.
+    :param sort: Optional dict { "field": one of ForecastSortField or HindcastSortField values,
+                             "direction": "asc" or "desc" }.
     :param response_id_key: Output key to use for the run id
                             (e.g. "forecast_run_id" or "hindcast_run_id").
     :param response_status_key: Output key to use for the status field
@@ -1915,7 +1917,7 @@ def _get_forecast_or_hindcast_base_jobs_internal(
     :return: Tuple (results, total_count, date_range, id_range).
     """
     filters = filters or {}
-    order_by = resolve_sort(sort, ForecastSortField)
+    order_by = resolve_sort(sort, sort_enum)
 
     with readonly_transaction():
         # Base query (ownership constraint)
@@ -2025,6 +2027,7 @@ def get_forecast_jobs_internal(
         sort=sort,
         response_id_key="forecast_run_id",
         response_status_key="forecast_status",
+        sort_enum=ForecastSortField,
         include_hindcast_fields=False,
     )
 
@@ -2046,7 +2049,7 @@ def get_hindcast_jobs_internal(
     :param limit: Optional maximum number of rows to return (for pagination). If None, return all.
     :param offset: Optional number of rows to skip before returning results (for pagination).
     :param filters: Optional dict of filter criteria (e.g. gage_id, status, modules).
-    :param sort: Optional dict { "field": one of ForecastSortField values, "direction": "asc" or "desc" }.
+    :param sort: Optional dict { "field": one of HindcastSortField values, "direction": "asc" or "desc" }.
     :return: Tuple (results, total_count, date_range, id_range).
     """
     return _get_forecast_or_hindcast_base_jobs_internal(
@@ -2059,6 +2062,7 @@ def get_hindcast_jobs_internal(
         sort=sort,
         response_id_key="hindcast_run_id",
         response_status_key="hindcast_status",
+        sort_enum=HindcastSortField,
         include_hindcast_fields=True,
     )
 
@@ -2134,7 +2138,7 @@ def get_forecast_jobs(request: Request) -> Response:
 
 
 @extend_schema(
-    request=ForecastPaginationSerializer,
+    request=HindcastPaginationSerializer,
     responses={
         200: GetHindcastJobsResponseSerializer,
         400: OpenApiResponse(
@@ -2162,7 +2166,7 @@ def get_hindcast_jobs(request: Request) -> Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
-    validator, error_return = validate_request(ForecastPaginationSerializer, data)
+    validator, error_return = validate_request(HindcastPaginationSerializer, data)
     if error_return:
         return error_return
 
@@ -2275,7 +2279,7 @@ def get_forecast_jobs_for_verification(request: Request) -> Response:
 
 
 @extend_schema(
-    request=ForecastPaginationSerializer,
+    request=HindcastPaginationSerializer,
     responses={
         200: GetHindcastJobsResponseSerializer,
         400: OpenApiResponse(
@@ -2303,7 +2307,7 @@ def get_hindcast_jobs_for_verification(request: Request) -> Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
-    validator, error_return = validate_request(ForecastPaginationSerializer, data)
+    validator, error_return = validate_request(HindcastPaginationSerializer, data)
     if error_return:
         return error_return
 

@@ -1,5 +1,5 @@
 from enum import StrEnum, Enum
-from typing import Self
+from typing import Self, Any
 
 
 # These enums are used from settings.py.  We need to avoid any references to the model
@@ -36,7 +36,26 @@ class SecondaryDataEnum(StrEnum):
     PRECIPITATION = 'Precipitation'
 
 
-class ForecastSortField(Enum):
+class _SortFieldMixin:
+    value: tuple[str, Any]
+
+    @property
+    def orm_field(self):
+        return self.value[1]
+
+    @classmethod
+    def from_name(cls, name: str) -> Self:
+        try:
+            return next(member for member in cls if member.value[0] == name)  # type: ignore[misc]
+        except StopIteration as exc:
+            raise ValueError(f"Invalid sort field: {name}") from exc
+
+    @classmethod
+    def get_names(cls) -> list[str]:
+        return [member.value[0] for member in cls]  # type: ignore[misc]
+
+
+class ForecastSortField(_SortFieldMixin, Enum):
     FORECAST_RUN_ID = ("forecast_run_id", "id")
     GAGE_ID = ("gage_id", "calibration_run__gage__gage_id")
     CALIBRATION_RUN_ID = ("calibration_run_id", "calibration_run__id")
@@ -44,24 +63,26 @@ class ForecastSortField(Enum):
     CREATED_AT = ("created_at", "created_at")
     CYCLE_DATE = ("cycle_date", "cycle_date")
     CONFIGURATION = ("configuration", "configuration__name")
-    DOMAIN_NAME = ("domain_name", "configuration__domain__name")
+    DOMAIN_NAME = ("domain_name", "calibration_run__gage__domain__name")
     FORECAST_STATUS = ("forecast_status", "status__name")
     COLD_START_DATE = ("cold_start_date", "cold_start_run__cold_start_date")
     COLD_START_STATUS = ("cold_start_status", "cold_start_run__status__name")
     COLD_START_SUBMIT_DATE = ("cold_start_submit_date", "cold_start_run__submit_date")
 
-    @property
-    def orm_field(self):
-        return self.value[1]
 
-    @classmethod
-    def from_name(cls, name: str) -> "Self":
-        return next(member for member in cls if member.value[0] == name)
-
-    @classmethod
-    def get_names(cls) -> list[str]:
-        """Return the canonical API names (i.e., the first slot of each tuple)."""
-        return [member.value[0] for member in cls]
+class HindcastSortField(_SortFieldMixin, Enum):
+    HINDCAST_RUN_ID = ("hindcast_run_id", "id")
+    GAGE_ID = ("gage_id", "calibration_run__gage__gage_id")
+    CALIBRATION_RUN_ID = ("calibration_run_id", "calibration_run__id")
+    SUBMIT_DATE = ("submit_date", "submit_date")
+    CREATED_AT = ("created_at", "created_at")
+    CYCLE_DATE = ("cycle_date", "cycle_date")
+    CONFIGURATION = ("configuration", "configuration__name")
+    DOMAIN_NAME = ("domain_name", "calibration_run__gage__domain__name")
+    HINDCAST_STATUS = ("hindcast_status", "status__name")
+    COLD_START_DATE = ("cold_start_date", "cold_start_run__cold_start_date")
+    COLD_START_STATUS = ("cold_start_status", "cold_start_run__status__name")
+    COLD_START_SUBMIT_DATE = ("cold_start_submit_date", "cold_start_run__submit_date")
 
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -77,7 +98,7 @@ class ForecastSortField(Enum):
 # that verifies this definition remains identical between the server and CLI
 # versions. If any field names differ, the build will fail.
 # ────────────────────────────────────────────────────────────────────────────────
-class CalibrationSortField(Enum):
+class CalibrationSortField(_SortFieldMixin, Enum):
     CALIBRATION_RUN_ID = ("calibration_run_id", "id")
     GAGE_ID = ("gage_id", "gage__gage_id")
     DOMAIN_NAME = ("domain_name", "gage__domain__name")
@@ -95,36 +116,10 @@ class CalibrationSortField(Enum):
     IS_LOCKED = ("is_locked", "is_locked")
     VALIDATION_RUNS = ("validation_runs", "validation_run_count")
 
-    @property
-    def orm_field(self):
-        return self.value[1]
 
-    @classmethod
-    def from_name(cls, name: str) -> "Self":
-        return next(member for member in cls if member.value[0] == name)
-
-    @classmethod
-    def get_names(cls) -> list[str]:
-        """Return the canonical API names (i.e., the first slot of each tuple)."""
-        return [member.value[0] for member in cls]
-
-
-class VerificationSortField(Enum):
+class VerificationSortField(_SortFieldMixin, Enum):
     VERIFICATION_RUN_ID = ("verification_run_id", "id")
     FORECAST_RUN_ID = ("forecast_run_id", "forecast_run__id")
     STATUS = ("status", "status__name")
     SUBMIT_DATE = ("submit_date", "submit_date")
     CREATED_AT = ("created_at", "created_at")
-
-    @property
-    def orm_field(self):
-        return self.value[1]
-
-    @classmethod
-    def from_name(cls, name: str) -> "Self":
-        return next(member for member in cls if member.value[0] == name)
-
-    @classmethod
-    def get_names(cls) -> list[str]:
-        """Return the canonical API names (i.e., the first slot of each tuple)."""
-        return [member.value[0] for member in cls]

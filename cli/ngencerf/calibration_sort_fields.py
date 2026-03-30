@@ -1,4 +1,24 @@
 from enum import Enum
+from typing import Self, Any
+
+
+class _SortFieldMixin:
+    value: tuple[str, Any]
+
+    @property
+    def orm_field(self):
+        return self.value[1]
+
+    @classmethod
+    def from_name(cls, name: str) -> Self:
+        try:
+            return next(member for member in cls if member.value[0] == name)  # type: ignore[misc]
+        except StopIteration as exc:
+            raise ValueError(f"Invalid sort field: {name}") from exc
+
+    @classmethod
+    def get_names(cls) -> list[str]:
+        return [member.value[0] for member in cls]   # type: ignore[misc]
 
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -13,7 +33,7 @@ from enum import Enum
 # A consistency check (`check_enum_consistency.py`) runs during build to ensure
 # this definition remains identical to the server-side version.
 # ────────────────────────────────────────────────────────────────────────────────
-class CalibrationSortField(Enum):
+class CalibrationSortField(_SortFieldMixin, Enum):
     CALIBRATION_RUN_ID = ("calibration_run_id", "id")
     GAGE_ID = ("gage_id", "gage__gage_id")
     DOMAIN_NAME = ("domain_name", "gage__domain__name")
