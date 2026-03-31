@@ -5,10 +5,11 @@ import logging
 import os
 import re
 import time
+from collections.abc import Mapping, Sequence
 from contextlib import contextmanager
 from datetime import timedelta, datetime
 from functools import wraps
-from typing import Type, Any, Callable
+from typing import Any, Callable, TypeVar, cast
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -47,13 +48,18 @@ User = get_user_model()
 def validate_run_instance(
         run: BaseRun,
         run_id: int,
-        run_status: list[StatusEnum] | None,
+        run_status: Sequence[StatusEnum] | None,
         is_archived_field: str,
         include_archived: bool,
         model_name: str,
 ) -> Response | None:
-    run_status = run_status or [StatusEnum.READY, StatusEnum.SAVED]
-    allowed_statuses = [s.db_instance for s in run_status]
+    effective_run_status: Sequence[StatusEnum]
+    if run_status is None:
+        effective_run_status = [StatusEnum.READY, StatusEnum.SAVED]
+    else:
+        effective_run_status = run_status
+
+    allowed_statuses = [s.db_instance for s in effective_run_status]
 
     is_archived = getattr(run, is_archived_field, False)
     if is_archived and not include_archived:
@@ -62,7 +68,7 @@ def validate_run_instance(
         )
 
     if run.status not in allowed_statuses:
-        allowed_names = [s.name for s in allowed_statuses]
+        allowed_names = [s.name for s in effective_run_status]
         return ResponseError(
             f'{model_name} {run_id} is not in an allowed status: '
             f'{join_with_or(allowed_names)}. '
@@ -75,7 +81,7 @@ def validate_run_instance(
 def get_calibration_runs_bulk(
         calibration_run_ids: list[int],
         user: User | None,
-        run_status: list[StatusEnum] | None = None,
+        run_status: Sequence[StatusEnum] | None = None,
         include_archived: bool = False,
 ) -> tuple[dict[int, CalibrationRun], dict[int, Response]]:
     """
@@ -154,17 +160,20 @@ def get_calibration_runs_bulk(
     return runs_by_id, errors_by_id
 
 
+BaseRunModelT = TypeVar('BaseRunModelT', bound=BaseRun)
+
+
 def get_run_instance(
-        model: Type[BaseRun],
+        model: type[BaseRunModelT],
         run_id: int,
         user: User | None,
-        run_status: list[StatusEnum] | None = None,
+        run_status: Sequence[StatusEnum] | None = None,
         owner_field: str = 'owner',
         is_archived_field: str = 'is_archived',
         include_archived: bool = False,
         *,
         select_related_fields: tuple[str, ...] = (),
-) -> tuple[BaseRun | None, Response | None]:
+) -> tuple[BaseRunModelT | None, Response | None]:
     """
     Retrieve and validate a single BaseRun-derived instance by ID.
 
@@ -193,7 +202,7 @@ def get_run_instance(
     :param run_status: Optional list of StatusEnum members to filter by.  Defaults to
                        [READY, SAVED] if not provided.
     :param owner_field: The field used to filter by owner (default 'owner').
-    :param is_archived_field: ame of the boolean field indicating archived state.
+    :param is_archived_field: Name of the boolean field indicating archived state.
                               May traverse relationships. (default 'is_archived')
     :param include_archived: Whether to include archived jobs.  If False, archived runs will return an error response.
     :param select_related_fields: Optional tuple of related field names to eagerly
@@ -202,16 +211,20 @@ def get_run_instance(
              - run: The retrieved model instance, or None if not found
              - error: A ResponseError if validation fails, otherwise None
     """
-    run_status = run_status or [StatusEnum.READY, StatusEnum.SAVED]
+    effective_run_status: Sequence[StatusEnum]
+    if run_status is None:
+        effective_run_status = [StatusEnum.READY, StatusEnum.SAVED]
+    else:
+        effective_run_status = run_status
 
     # Query without filtering out archived jobs
-    query: QuerySet = model.objects.filter(id=run_id)
+    query: QuerySet[BaseRunModelT] = model.objects.filter(id=run_id)
 
     if select_related_fields:
         query = query.select_related(*select_related_fields)
 
     if user:
-        query = query.filter(**{f"{owner_field}": user})
+        query = query.filter(**{owner_field: user})
 
     try:
         run = query.get()
@@ -226,7 +239,7 @@ def get_run_instance(
     error = validate_run_instance(
         run=run,
         run_id=run_id,
-        run_status=run_status,
+        run_status=effective_run_status,
         is_archived_field=is_archived_field,
         include_archived=include_archived,
         model_name=model_name,
@@ -241,7 +254,7 @@ def get_run_instance(
 def get_calibration_run(
         calibration_run_id: int,
         user: User | None,
-        run_status: list[StatusEnum] | None = None,
+        run_status: Sequence[StatusEnum] | None = None,
         include_archived: bool = False
 ) -> tuple[CalibrationRun | None, Response | None]:
     """
@@ -268,7 +281,7 @@ def get_calibration_run(
 def get_validation_run(
         validation_run_id: int,
         user: User | None,
-        run_status: list[StatusEnum] | None = None
+        run_status: Sequence[StatusEnum] | None = None
 ) -> tuple[ValidationRun | None, Response | None]:
     """
     Retrieve a ValidationRun by ID, optionally filtering by owner and status.
@@ -297,7 +310,7 @@ def get_validation_run(
 def get_cold_start_run(
         cold_start_run_id: int,
         user: User | None,
-        run_status: list[StatusEnum] | None = None
+        run_status: Sequence[StatusEnum] | None = None
 ) -> tuple[ColdStartRun | None, Response | None]:
     """
     Retrieve a ColdStartRun by ID, optionally filtering by owner and status.
@@ -327,7 +340,7 @@ def get_cold_start_run(
 def get_forecast_run(
         forecast_run_id: int,
         user: User | None,
-        run_status: list[StatusEnum] | None = None
+        run_status: Sequence[StatusEnum] | None = None
 ) -> tuple[ForecastRun | None, Response | None]:
     """
     Retrieve a ForecastRun by ID, optionally filtering by owner and status.
@@ -360,7 +373,7 @@ def get_forecast_run(
 def get_hindcast_run(
         hindcast_run_id: int,
         user: User | None,
-        run_status: list[StatusEnum] | None = None
+        run_status: Sequence[StatusEnum] | None = None
 ) -> tuple[HindcastRun | None, Response | None]:
     """
     Retrieve a HindcastRun by ID, optionally filtering by owner and status.
@@ -393,7 +406,7 @@ def get_hindcast_run(
 def get_verification_run(
         verification_run_id: int,
         user: User | None,
-        run_status: list[StatusEnum] | None = None
+        run_status: Sequence[StatusEnum] | None = None
 ) -> tuple[VerificationRun | None, Response | None]:
     """
     Retrieve a VerificationRun by ID, optionally filtering by owner and status.
@@ -467,18 +480,15 @@ def png_to_base64_url(png_file_path: str) -> str:
         raise CerfException(f"File '{png_file_path}' does not exist")
 
 
-def png_str_to_base64_url(png_str: bytes | None) -> str | None:
+def png_str_to_base64_url(png_str: bytes) -> str:
     """
     Convert PNG bytes to a base64-encoded data URL.
 
     :param png_str: PNG image bytes.
-    :return: Base64-encoded data URL or None if input is empty.
+    :return: Base64-encoded data URL.
     """
-    if png_str:
-        base64_str = base64.b64encode(png_str).decode('utf-8')
-        return f'data:image/png;base64,{base64_str}'
-    else:
-        return None
+    base64_str = base64.b64encode(png_str).decode('utf-8')
+    return f'data:image/png;base64,{base64_str}'
 
 
 def create_calibration_run_internal(user: User, genesis: JobGenesis | None = None) -> CalibrationRun:
@@ -523,7 +533,7 @@ def create_calibration_run_internal(user: User, genesis: JobGenesis | None = Non
 def create_validation_run_internal(
         calibration_run: CalibrationRun,
         iteration_id: int | None,
-        validation_type: ValidationType = None
+        validation_type: ValidationType | None = None
 ) -> ValidationRun:
     """
     Create a new ValidationRun object for the given CalibrationRun.
@@ -533,25 +543,35 @@ def create_validation_run_internal(
     :param validation_type: Optional value to store in Validation Run object.
     :return: The newly created ValidationRun instance.
     """
-    validation_type = validation_type or ValidationType.VALID_ITERATION
+    effective_validation_type: ValidationType
+    if validation_type is None:
+        effective_validation_type = ValidationType.VALID_ITERATION
+    else:
+        effective_validation_type = validation_type
 
     iteration_object = None
-    if validation_type == ValidationType.VALID_ITERATION:
+    if effective_validation_type == ValidationType.VALID_ITERATION:
         if iteration_id is None:
             raise CerfException(f"Values must be supplied for both iteration_id")
 
         try:
-            iteration_object = Iteration.objects.get(calibration_run_id=calibration_run.id, id=iteration_id)
+            iteration_object = Iteration.objects.get(
+                calibration_run_id=calibration_run.id,
+                id=iteration_id
+            )
         except Iteration.DoesNotExist:
             raise CerfException(f"Cannot find Iteration Id {iteration_id} for Calibration Job {calibration_run.id}")
 
     validation_run = ValidationRun.objects.create(
         status=StatusEnum.SAVED.db_instance,
         calibration_run_id=calibration_run.id,
-        validation_type=validation_type.value,
+        validation_type=effective_validation_type.value,
         iteration=iteration_object
     )
-    logger.info(f"Creating Validation Job {validation_run.id} for Calibration Job {calibration_run.id} with validation_type {validation_type}")
+    logger.info(
+        f"Creating Validation Job {validation_run.id} for Calibration Job {calibration_run.id} "
+        f"with validation_type {effective_validation_type}"
+    )
 
     return validation_run
 
@@ -649,7 +669,7 @@ def create_hindcast_run_internal(
     return hindcast_run
 
 
-def create_verification_run_internal(forecast_run: ForecastRun) -> VerificationRun | Response:
+def create_verification_run_internal(forecast_run: ForecastRun) -> VerificationRun:
     """
     Create a new VerificationRun for the given user.
 
@@ -705,7 +725,7 @@ class CheckTokenScope(BasePermission):
     def __init__(self, required_scope):
         self.required_scope = required_scope
 
-    def has_permission(self, request, view):
+    def has_permission(self, request, view) -> bool:
         # Ensure that the user is authenticated and has a valid token
         if not request.user or not request.auth:
             logger.debug(f"No token or user provided - user: {request.user}, auth: {request.auth}")
@@ -714,8 +734,12 @@ class CheckTokenScope(BasePermission):
         # We should already have a validated token in request.auth
         token = request.auth
 
+        if not isinstance(token, Mapping):
+            logger.debug(f"Invalid token object for scope check: {token!r}")
+            return False
+
         # Log the available scopes and the required one
-        token_scope = token.get('scope', '').split()
+        token_scope = str(token.get('scope', '')).split()
         logger.debug(f"Validating token: Token scope: {token_scope}, Required scope: {self.required_scope}")
 
         # Make sure we have our custom scope
@@ -791,7 +815,7 @@ def handle_exceptions(view_func):
     return _wrapped_view
 
 
-def get_valid_path(eds_path, get_path_func):
+def get_valid_path(eds_path: str | None, get_path_func: Callable[[], str | None]) -> str | None:
     """
     Determine the valid file path by checking the job-specific path first,
     then falling back to the provided EDS path if the job-specific file does not exist.
@@ -918,7 +942,7 @@ def validate_response(serializer_class, data, fields_to_truncate=None, max_lengt
         return None, ResponseError(message, response_type='validation_error_response', validation_errors=validation_errors)
 
 
-def validate_response_data(serializer_class: Type[BaseSerializer], data: dict[str, Any], error_message: str) -> dict[str, Any]:
+def validate_response_data(serializer_class: type[BaseSerializer], data: dict[str, Any], error_message: str) -> dict[str, Any]:
     """
     Validates response data and raises an exception if validation fails.
 
@@ -983,10 +1007,12 @@ def get_job_description(run: BaseRun) -> str:
 # Regular expression pattern to match directories like "ngen_xxxxxxx_worker"
 worker_directory_pattern = re.compile(r'ngen_\w+_worker')
 
+WorkerRunT = TypeVar('WorkerRunT', CalibrationRun, ValidationRun)
+
 
 def process_worker_dirs(
-        run: CalibrationRun | ValidationRun,
-        worker_lambda: Callable[[str, CalibrationRun | ValidationRun], bool]
+        run: WorkerRunT,
+        worker_lambda: Callable[[str, WorkerRunT], bool]
 ) -> None:
     """
     Iterate over worker directories for a calibration or validation run.
@@ -1001,7 +1027,6 @@ def process_worker_dirs(
     :param worker_lambda: A callback function applied to each worker directory.
                           Return True to stop iterating, False to continue.
     """
-
     if isinstance(run, CalibrationRun):
         output_run_dir = get_output_calibration_run_dir(run)
     elif isinstance(run, ValidationRun):
@@ -1019,7 +1044,7 @@ def process_worker_dirs(
         # Check if the item is a directory and matches the pattern
         if os.path.isdir(worker_dir) and worker_directory_pattern.match(item):
             logger.debug(f"Processing worker directory: {worker_dir} for {job_description}")
-            should_stop = worker_lambda(worker_dir, run)
+            should_stop = worker_lambda(worker_dir, cast(WorkerRunT, run))
             # Stop only on an explicit True; any other value continues iteration
             if should_stop is True:  # noqa
                 break
@@ -1115,9 +1140,12 @@ def get_user_email(request: Request) -> str:
     return "Anonymous"
 
 
-def generate_ngen_logging_config(run: CalibrationRun | ValidationRun | ForecastRun | HindcastRun, logging_config_param: dict = None) -> dict:
+def generate_ngen_logging_config(
+        run: CalibrationRun | ValidationRun | ForecastRun | HindcastRun | ColdStartRun,
+        logging_config_param: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """
-    Generate the JSON logging configuration for a calibration, validation, or forecast run.
+    Generate the JSON logging configuration for a calibration, validation, forecast, hindcast or cold start run.
 
     The generated config includes:
     - All valid modules (based on cached definitions)
@@ -1132,7 +1160,7 @@ def generate_ngen_logging_config(run: CalibrationRun | ValidationRun | ForecastR
 
     All module names are treated case-insensitively and stored in lowercase in the output.
 
-    :param run: A CalibrationRun, ValidationRun, or ForecastRun instance for which to generate the logging config.
+    :param run: A Run instance for which to generate the logging config.
     :param logging_config_param: A dictionary with optional overrides, e.g.:
         {
             "logging_enabled": False,
@@ -1141,8 +1169,7 @@ def generate_ngen_logging_config(run: CalibrationRun | ValidationRun | ForecastR
         }
     :return: A dictionary representing the final logging config.
     """
-    if not logging_config_param:
-        logging_config_param = {}
+    params = logging_config_param or {}
 
     # Only use modules in our formulation
     calibration_run = run if isinstance(run, CalibrationRun) else run.calibration_run
@@ -1182,10 +1209,10 @@ def generate_ngen_logging_config(run: CalibrationRun | ValidationRun | ForecastR
     apply_config_file(get_ngen_logging_file(run, import_flag=False))
 
     # Apply overrides from the provided logging_config_param (used by UI during run_calibration_job)
-    logging_enabled = logging_config_param.get("logging_enabled", logging_enabled)
-    split_logs_by_module = logging_config_param.get("split_logs_by_module", split_logs_by_module)
+    logging_enabled = params.get("logging_enabled", logging_enabled)
+    split_logs_by_module = params.get("split_logs_by_module", split_logs_by_module)
 
-    for name, level in logging_config_param.get("modules", {}).items():
+    for name, level in params.get("modules", {}).items():
         module_levels[name.lower()] = level
 
     return {
@@ -1195,7 +1222,10 @@ def generate_ngen_logging_config(run: CalibrationRun | ValidationRun | ForecastR
     }
 
 
-def write_ngen_logging_file(run: CalibrationRun | ValidationRun | ForecastRun | HindcastRun | ColdStartRun, logging_config_param: dict) -> None:
+def write_ngen_logging_file(
+        run: CalibrationRun | ValidationRun | ForecastRun | HindcastRun | ColdStartRun,
+        logging_config_param: dict[str, Any]
+) -> None:
     """
     Generate and write the logging config to a JSON file on disk, and create a symbolic link pointing
     to it using a consistent base name.
@@ -1302,7 +1332,7 @@ def get_elapsed_str(request: Request) -> str:
     raw_request = getattr(request, '_request', None)
     start_time = getattr(raw_request, '_start_time', None)
 
-    if start_time is None:
+    if not isinstance(start_time, float):
         return ""
 
     elapsed = time.perf_counter() - start_time

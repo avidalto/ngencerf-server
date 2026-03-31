@@ -436,7 +436,7 @@ def get_ngen_logging_basename() -> str:
     return "ngen_logging"
 
 
-def get_ngen_logging_file(run: CalibrationRun | ValidationRun | ForecastRun | ColdStartRun, import_flag: bool = False) -> str:
+def get_ngen_logging_file(run: CalibrationRun | ValidationRun | ForecastRun | HindcastRun | ColdStartRun, import_flag: bool = False) -> str:
     calibration_run = run if isinstance(run, CalibrationRun) else run.calibration_run
     job_type = run.__class__.__name__.removesuffix('Run').lower()
     file_name = f"{get_ngen_logging_basename()}_{job_type}_{run.id}{'_import' if import_flag else ''}.json"
