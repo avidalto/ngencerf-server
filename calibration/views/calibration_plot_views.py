@@ -615,6 +615,7 @@ def get_plot_data(run: CalibrationRun | ValidationRun, plot_definition: dict[str
         case PlotDefinitionsEnum.HYDROGRAPH_EVOLUTION | PlotDefinitionsEnum.SCATTERPLOT_STREAMFLOW:
             # Merge multiple hydrograph-related files and paginate the result
             worker_dir = worker_dir or find_worker_with_non_empty_plot_iteration(calibration_run)
+
             file_paths = [
                 get_observational_file_for_job(calibration_run),  # Observation
                 get_output_iteration_file(calibration_run, 0, worker_dir),  # Iteration
@@ -622,9 +623,12 @@ def get_plot_data(run: CalibrationRun | ValidationRun, plot_definition: dict[str
                 get_output_best_iteration_file(calibration_run, worker_dir),  # Best Iteration
                 get_precipitation_timeseries_data_filepath(calibration_run),
             ]
+
             column_names = ["Observation", "Control Run", "Last Run", "Best Run", "Precipitation"]
             # Get paginated data and total count
-            data, total_count = load_and_merge_hydrograph_files_with_pagination_and_count(file_paths, column_names, start, limit)
+            data, total_count = load_and_merge_hydrograph_files_with_pagination_and_count(
+                file_paths, column_names, start, limit
+            )
             return {'data': data, 'total_count': total_count}
 
         case PlotDefinitionsEnum.METRIC_EVOLUTION:

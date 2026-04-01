@@ -94,6 +94,7 @@ def get_calibration_data_by_iteration(request: Request) -> Response:
     run, error_return = get_calibration_run(calibration_run_id, request.user, run_status=[StatusEnum.DONE])
     if error_return:
         return error_return
+    assert run is not None
 
     # Fetch retrospective metrics data associated with the calibration run
     nwm_retrospective_data = list(

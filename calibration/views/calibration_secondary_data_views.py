@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
-def derive_secondary_data_file_inputs(run: ValidationRun) -> dict[str, str]:
+def derive_secondary_data_file_inputs(run: ValidationRun) -> dict[str, str] | None:
     """
     Derives the common file inputs from the validation run for SWE and Soil Moisture
 
@@ -266,6 +266,7 @@ def _get_secondary_images_by_date_or_datetime(
     )
     if error_return:
         return error_return
+    assert run is not None
 
     validation_start_date = run.calibration_run.validation_start_period.strftime("%Y-%m-%d")
     validation_end_date = run.calibration_run.validation_end_period.strftime("%Y-%m-%d")
@@ -392,6 +393,7 @@ def _get_secondary_timeseries_data(
     )
     if error_return:
         return error_return
+    assert run is not None
 
     # Map function dispatch by data_type
     data_config = {

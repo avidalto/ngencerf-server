@@ -5,7 +5,7 @@ import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor, Future
 from datetime import datetime, timezone
-from typing import Callable
+from typing import Callable, cast
 from urllib.parse import urlparse
 
 import fsspec
@@ -25,8 +25,8 @@ from calibration.util.git_util import get_git_info_internal
 from calibration.util.ngen_locations import get_calibration_input_file, get_validation_best_stdout_file, get_validation_control_stdout_file, \
     get_calibration_stdout_file, get_validation_best_input_file, get_validation_control_input_file, get_validation_iteration_stdout_file, \
     get_forecast_stdout_file, get_forecast_dir, get_validation_iteration_git_info_file, get_validation_special_git_info_file, \
-    get_calibration_git_info_file, get_forecast_git_info_file, get_forcing_dir_for_job, get_verification_yaml_config_file, \
-    get_verification_git_info_file, get_forecast_realization_file, get_cold_start_realization_file, \
+    get_calibration_git_info_file, get_forecast_git_info_file, get_forcing_dir_for_job, get_verification_git_info_file, get_verification_stdout_file, \
+    get_forecast_realization_file, get_cold_start_realization_file, \
     get_cold_start_stdout_file, get_cold_start_dir, \
     get_cold_start_git_info_file, get_hindcast_stdout_file, get_hindcast_git_info_file, get_hindcast_dir, get_cold_start_state, \
     get_verification_stdout_file
@@ -581,7 +581,7 @@ def prepare_fcst_or_cold_start_job(run: ColdStartRun | ForecastRun | HindcastRun
             save_state = True
             saved_state = None
         else:  # ForecastRun
-            run_name = os.path.basename(get_forecast_dir(run))
+            run_name = os.path.basename(get_forecast_dir(cast(ForecastRun, run)))
             use_cold_start = False
             save_state = False
             saved_state = get_cold_start_state(run.cold_start_run) if run.cold_start_run else None

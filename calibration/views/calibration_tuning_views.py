@@ -85,6 +85,7 @@ def load_tuning_tab(request: Request) -> Response:
         run, error_return = get_calibration_run(calibration_run_id, request.user, run_status=list(StatusEnum))
         if error_return:
             return error_return
+        assert run is not None
 
         # Compute time range without persisting
         time_range = compute_time_range(run)
@@ -368,6 +369,7 @@ def save_tuning_tab(request: Request) -> Response:
     run, error_return = get_calibration_run(calibration_run_id, request.user)
     if error_return:
         return error_return
+    assert run is not None
 
     # Require at least one module selected for this job (i.e., at least one formulation exists)
     has_any_modules = CalibrationFormulation.objects.filter(calibration_run=run).exists()
@@ -465,6 +467,7 @@ def upload_user_parameters(request: Request) -> Response:
     run, error_return = get_calibration_run(calibration_run_id, request.user)
     if error_return:
         return error_return
+    assert run is not None
 
     files = request.FILES.getlist('user_parameter_file')
     if not files:
@@ -692,6 +695,7 @@ def validate_parameters(request: Request) -> Response:
     run, error_return = get_calibration_run(calibration_run_id, request.user, run_status=list(StatusEnum))
     if error_return:
         return error_return
+    assert run is not None
 
     # --- Gather what validate_parameter_selection_rules needs ---
     module_names_for_job = set(
@@ -864,7 +868,7 @@ def validate_and_save_times(run: CalibrationRun, calibration_times: dict[str, da
     full_evaluation_end_date: datetime | None = None
 
     # Define the expanded evaluation range from the minimum and maximum evaluation start/end times
-    if validation_evaluation_range and calibration_evaluation_range:
+    if validation_evaluation_range is not None and calibration_evaluation_range is not None:
         full_evaluation_start_date, full_evaluation_end_date = get_full_evaluation_date_range_from_ranges(
             calibration_evaluation_range,
             validation_evaluation_range
@@ -1028,7 +1032,7 @@ def validate_parameter_values(run: CalibrationRun, parameters: list[dict[str, st
 
     # Validate each provided parameter
     for p in parameters:
-        module_name = p['module']
+        module_name: str = p['module']
         key = (module_name, p['name'])
         if key not in parameter_lookup:
             # Check if module is valid

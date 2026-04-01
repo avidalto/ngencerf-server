@@ -607,7 +607,7 @@ def create_cold_start_run_internal(
 
 def create_forecast_run_internal(
         calibration_run: CalibrationRun,
-        cold_start_run: ColdStartRun,
+        cold_start_run: ColdStartRun | None,
         configuration: ForecastConfiguration,
         cycle_date: datetime
 ) -> ForecastRun:

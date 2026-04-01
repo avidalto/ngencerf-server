@@ -137,6 +137,7 @@ def create_and_run_validation(request: Request) -> Response:
     calibration_run, error_return = get_calibration_run(calibration_run_id, request.user, run_status=[StatusEnum.DONE])
     if error_return:
         return error_return
+    assert calibration_run is not None
 
     # ─────────────────────────────────────────────
     # Require BOTH VALID_CONTROL and VALID_BEST to be DONE.
@@ -247,6 +248,7 @@ def create_and_run_forecast(request: Request) -> Response:
     calibration_run, error_return = get_calibration_run(calibration_run_id, request.user, run_status=[StatusEnum.DONE])
     if error_return:
         return error_return
+    assert calibration_run is not None
 
     forecast_errors = []
 
@@ -380,6 +382,7 @@ def create_and_run_hindcast(request: Request) -> Response:
     calibration_run, error_return = get_calibration_run(calibration_run_id, request.user, run_status=[StatusEnum.DONE])
     if error_return:
         return error_return
+    assert calibration_run is not None
 
     hindcast_errors = []
 
@@ -399,6 +402,7 @@ def create_and_run_hindcast(request: Request) -> Response:
         cold_start_run, error_return = get_cold_start_run(cold_start_run_id, request.user, run_status=[StatusEnum.DONE])
         if error_return:
             return error_return
+        assert cold_start_run is not None
 
         cold_start_date = cold_start_run.cold_start_date
 
@@ -687,6 +691,7 @@ def clone_job(request: Request) -> Response:
         run, error_return = get_calibration_run(calibration_run_id, request.user, run_status=list(StatusEnum))
         if error_return:
             return error_return
+        assert run is not None
 
         calibration_run_data, _ = load_calibration_run_data(run, export=True)
 
@@ -696,6 +701,7 @@ def clone_job(request: Request) -> Response:
     new_run, _, fatal_error = import_calibration_run_data(request, calibration_run_data, JobGenesis.CLONE)
     if fatal_error:
         return fatal_error
+    assert new_run is not None
 
     # Set the new status to Saved and then we check it
     new_run.status = StatusEnum.SAVED.db_instance
@@ -1304,6 +1310,7 @@ def import_job(request: Request) -> Response:
     run, messages, errors = import_calibration_run_data(request, data, JobGenesis.IMPORT, run=calibration_run, is_cli=is_cli)
     if errors:
         return errors
+    assert run is not None
 
     imported_and_submitted = 'updated' if calibration_run_id else 'imported'
 

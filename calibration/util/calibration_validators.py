@@ -1464,7 +1464,7 @@ class LoadForecastTabResponseSerializer(BaseSerializer):
     forecast_configuration_values = ForecastConfigSerializer(many=True)
 
 
-class ColdStartJobsResponseSerializer(BaseSerializer):
+class ColdStartJobsResponseSerializer(ColdStartRunIdSerializer):
     cold_start_status = serializers.CharField(required=False, allow_null=True, validators=[enum_validator(StatusEnum, allow_blank=False)])
     cold_start_date = serializers.DateTimeField(required=True, allow_null=True)
     cold_start_submit_date = serializers.DateTimeField(required=True, allow_null=True)

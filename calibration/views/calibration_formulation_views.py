@@ -189,6 +189,7 @@ def load_formulation_tab(request) -> Response:
     run, error_return = get_calibration_run(calibration_run_id, request.user, run_status=list(StatusEnum))
     if error_return:
         return error_return
+    assert run is not None
 
     formulation_errors, formulation_warnings, formulation_messages = validate_formulation(
         new_module_names,
@@ -381,6 +382,7 @@ def save_formulation_tab(request) -> Response:
     run, error_return = get_calibration_run(calibration_run_id, request.user)
     if error_return:
         return error_return
+    assert run is not None
 
     if not run.gage:
         return ResponseError('Gage must be specified before selecting formulation')

@@ -73,6 +73,7 @@ def load_forecast_tab(request: Request) -> Response:
     calibration_run, error_return = get_calibration_run(calibration_run_id, request.user, run_status=[StatusEnum.DONE])
     if error_return:
         return error_return
+    assert calibration_run is not None
 
     extra_filter = {
         'domain': calibration_run.gage.domain,
@@ -162,6 +163,7 @@ def clone_and_run_forecast_job(request: Request) -> Response:
     run, error_return = get_forecast_run(forecast_run_id, request.user, run_status=list(StatusEnum))
     if error_return:
         return error_return
+    assert run is not None
 
     new_forecast_run = create_forecast_run_internal(
         run.calibration_run,
@@ -224,6 +226,7 @@ def clone_and_run_hindcast_job(request: Request) -> Response:
     run, error_return = get_hindcast_run(hindcast_run_id, request.user, run_status=list(StatusEnum))
     if error_return:
         return error_return
+    assert run is not None
 
     new_hindcast_run = create_hindcast_run_internal(
         run.calibration_run,
@@ -288,6 +291,7 @@ def get_forecast_timeseries_data(request: Request) -> Response:
     run, error_return = get_forecast_run(forecast_run_id, request.user, run_status=list(StatusEnum))
     if error_return:
         return error_return
+    assert run is not None
 
     # Read the output data from forecast (and possibly cold start)
     forecast_output = get_forecast_output_file(run)
@@ -381,6 +385,7 @@ def delete_forecast_job(request: Request) -> Response:
     run, error_return = get_forecast_run(forecast_run_id, request.user, run_status=list(StatusEnum))
     if error_return:
         return error_return
+    assert run is not None
 
     if run.status in [StatusEnum.RUNNING.db_instance, StatusEnum.SUBMITTED.db_instance]:
         return ResponseError(f'Forecast Job {run.id} is running.  Cannot delete a running job')
@@ -454,6 +459,7 @@ def delete_hindcast_job(request: Request) -> Response:
     run, error_return = get_hindcast_run(hindcast_run_id, request.user, run_status=list(StatusEnum))
     if error_return:
         return error_return
+    assert run is not None
 
     if run.status in [StatusEnum.RUNNING.db_instance, StatusEnum.SUBMITTED.db_instance]:
         return ResponseError(f'Hindcast Job {run.id} is running.  Cannot delete a running job')
@@ -549,7 +555,8 @@ def get_cold_start_jobs_for_configuration(request: Request) -> Response:
             continue
 
         cold_start_jobs.append({
-            'cold_start_status': run.status.name if run.status else None,
+            'cold_start_run_id': run.id,
+            'cold_start_status': run.status.name,  # if run.status else None,
             'cold_start_date': run.cold_start_date,
             'cold_start_submit_date': run.submit_date,
         })
