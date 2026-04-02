@@ -41,3 +41,7 @@ pandas~=2.3.3
 # These dependancies are installed separately in runCerf.sh in order to ensure that we get the latest code
 
 
+
+# ASGI server (runCerf.sh launches Gunicorn w/ Uvicorn workers)
+gunicorn~=23.0.0
+uvicorn~=0.35.0

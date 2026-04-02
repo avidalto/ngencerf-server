@@ -55,6 +55,8 @@ services:
       - ${NGEN_CAL_DATA_PATH}:/ngencerf/data/
       - ../logs/ngencerf-server:/ngencerf/ngencerf-server/logs/
     environment:
+      - SKIP_AWS_CREDENTIAL_CHECK=true
+      - DJANGO_ALLOWED_HOSTS=10.6.2.27,localhost,127.0.0.1
       - NGEN_CAL_DATA_PATH=${NGEN_CAL_DATA_PATH}
     env_file:
       - path: cerfServer/.env-docker-dev

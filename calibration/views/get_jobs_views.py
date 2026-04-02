@@ -25,6 +25,7 @@ from calibration.views.calibration_download_views import downloadable_statuses
 from calibration.views.called_from import get_caller_name
 from calibration.views.common import handle_exceptions, validate_request, validate_response, truncate_large_fields, get_user_email, get_elapsed_str, \
     readonly_transaction, get_calibration_run
+from drf_spectacular.utils import extend_schema, OpenApiResponse, PolymorphicProxySerializer
 
 logger = logging.getLogger(__name__)
 
@@ -245,7 +246,6 @@ def get_calibration_jobs_for_evaluation(request: Request) -> Response:
     )
     return Response(response_validator.data)
 
-
 @extend_schema(
     request=CalibrationPaginationSerializer,
     responses={
@@ -269,7 +269,7 @@ def get_calibration_jobs_for_evaluation(request: Request) -> Response:
             description="Internal server error"
         )
     },
-    description="Get all Calibration jobs for Forecast"
+    description="Get all Calibration jobs for Evaluation"
 )
 @api_view(['POST', 'GET'])
 @handle_exceptions

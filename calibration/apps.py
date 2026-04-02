@@ -32,16 +32,16 @@ def print_banner():
 
 ███╗   ██╗ ██████╗ ███████╗███╗   ██╗ ██████╗███████╗██████╗ ███████╗
 ████╗  ██║██╔════╝ ██╔════╝████╗  ██║██╔════╝██╔════╝██╔══██╗██╔════╝
-██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║██║     █████╗  ██████╔╝█████╗  
-██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║██║     ██╔══╝  ██╔══██╗██╔══╝ta  
-██║ ╚████║╚██████╔╝███████╗██║ ╚████║╚██████╗███████╗██║  ██║██║     
-╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝ ╚═════╝╚══════╝╚═╝  ╚═╝╚═╝     
+██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║██║     █████╗  ██████╔╝█████╗
+██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║██║     ██╔══╝  ██╔══██╗██╔══╝ta
+██║ ╚████║╚██████╔╝███████╗██║ ╚████║╚██████╗███████╗██║  ██║██║
+╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝ ╚═════╝╚══════╝╚═╝  ╚═╝╚═╝
 
-███████╗███████╗██████╗ ██╗   ██╗███████╗██████╗                     
-██╔════╝██╔════╝██╔══██╗██║   ██║██╔════╝██╔══██╗                    
-███████╗█████╗  ██████╔╝██║   ██║█████╗  ██████╔╝                    
-╚════██║██╔══╝  ██╔══██╗╚██╗ ██╔╝██╔══╝  ██╔══██╗                    
-███████║███████╗██║  ██║ ╚████╔╝ ███████╗██║  ██║                    
+███████╗███████╗██████╗ ██╗   ██╗███████╗██████╗
+██╔════╝██╔════╝██╔══██╗██║   ██║██╔════╝██╔══██╗
+███████╗█████╗  ██████╔╝██║   ██║█████╗  ██████╔╝
+╚════██║██╔══╝  ██╔══██╗╚██╗ ██╔╝██╔══╝  ██╔══██╗
+███████║███████╗██║  ██║ ╚████╔╝ ███████╗██║  ██║
 ╚══════╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝ """
 
     logger.info(banner)
@@ -63,18 +63,24 @@ class CalibrationConfig(AppConfig):
         # Banner + basic info
         # -------------------------------------------------------------
         if running_dev_server or running_gunicorn:
+            skip_aws = os.getenv("SKIP_AWS_CREDENTIAL_CHECK", "").lower() in ("1", "true", "yes", "y")
+            if not skip_aws:
+                try:
+                    check_aws_credentials()
+                except S3CredentialsExpired:
+                    logger.error("AWS credential sanity check failed at startup")
+                    raise
+            else:
+                logger.info("Skipping AWS credential check (SKIP_AWS_CREDENTIAL_CHECK=true)")
+
             print_banner()
         else:
-            # Management command
             cmd = sys.argv[1] if len(sys.argv) > 1 else os.path.basename(sys.argv[0])
             logger.info(f'*** Running {cmd}')
 
         logger.info(f'Environment: {settings.NGEN_ENVIRONMENT_STR}')
         log_worker_info()
 
-        # ------------------------------------------------------------------
-        # ALWAYS display Git, DB and environment info
-        # ------------------------------------------------------------------
         logger.info('')
         print_git_info_all()
 
@@ -92,8 +98,6 @@ class CalibrationConfig(AppConfig):
         log_mpi_rules()
 
         from calibration.util.ngen_locations import check_files
-
         check_files()
 
-        # Diagnostics wrapper for DB
         patch_ensure_connection_with_diagnostics()
