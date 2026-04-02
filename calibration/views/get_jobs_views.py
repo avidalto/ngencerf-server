@@ -427,59 +427,63 @@ def _normalize_filters_and_sort(filters: dict | None, sort: dict | None) -> tupl
     :return: Tuple of (normalized_filters, normalized_sort) with blanks stripped out.
     """
     if filters is not None:
+        filters_dict: dict[str, Any] = filters
+
         # Remove top-level keys that are "empty" so they don't accidentally enable logic paths.
         # Examples of values we treat as empty: "", [], {}, None
-        filters = {k: v for k, v in filters.items() if v not in ("", [], {}, None)}
+        filters_dict = {k: v for k, v in filters_dict.items() if v not in ("", [], {}, None)}
 
         # status is a list of strings; drop blank/whitespace entries. If it becomes empty, remove it.
-        if isinstance(filters.get("status"), list):
-            filters["status"] = [s for s in filters["status"] if isinstance(s, str) and s.strip() != ""]
-            if not filters["status"]:
-                filters.pop("status", None)
+        if isinstance(filters_dict.get("status"), list):
+            filters_dict["status"] = [s for s in filters_dict["status"] if isinstance(s, str) and s.strip() != ""]
+            if not filters_dict["status"]:
+                filters_dict.pop("status", None)
 
         # module_filter is a nested object; normalize modules list by dropping blanks.
         # If modules becomes empty, the module filter is effectively not provided.
-        if "module_filter" in filters and filters["module_filter"]:
-            mf = filters["module_filter"]
+        if "module_filter" in filters_dict and filters_dict["module_filter"]:
+            mf = filters_dict["module_filter"]
             modules = mf.get("modules") or []
             modules = [m for m in modules if isinstance(m, str) and m.strip() != ""]
             mf["modules"] = modules
             if not modules:
-                filters.pop("module_filter", None)
+                filters_dict.pop("module_filter", None)
 
         # date_filter: only keep it if it has the required fields for the chosen operator.
         # - between: must have BOTH start_date and end_date
         # - before/after: must have operator and create_date
-        if "date_filter" in filters and filters["date_filter"]:
-            date_filter = filters["date_filter"]
+        if "date_filter" in filters_dict and filters_dict["date_filter"]:
+            date_filter = filters_dict["date_filter"]
             op = (date_filter.get("operator") or "").lower()
 
             if op == "between":
                 # Require both start and end
                 if not date_filter.get("start_date") or not date_filter.get("end_date"):
-                    filters.pop("date_filter", None)
+                    filters_dict.pop("date_filter", None)
             elif not date_filter.get("operator") or not date_filter.get("create_date"):
                 # for 'before' / 'after', require a single value
-                filters.pop("date_filter", None)
+                filters_dict.pop("date_filter", None)
 
         # id_filter: only keep it if it has the required fields for the chosen operator.
         # - between: must have BOTH start_id and end_id (and they can be 0, so check is None)
         # - before/after: must have operator and id (id can be 0, so check is None)
-        if "id_filter" in filters and filters["id_filter"]:
-            id_filter = filters["id_filter"]
+        if "id_filter" in filters_dict and filters_dict["id_filter"]:
+            id_filter = filters_dict["id_filter"]
             op = (id_filter.get("operator") or "").lower()
 
             if op == "between":
                 # Require both start and end
                 if id_filter.get("start_id") is None or id_filter.get("end_id") is None:
-                    filters.pop("id_filter", None)
+                    filters_dict.pop("id_filter", None)
             elif not id_filter.get("operator") or id_filter.get("id") is None:
                 # for 'before' / 'after', require a single id value
-                filters.pop("id_filter", None)
+                filters_dict.pop("id_filter", None)
 
         # If we stripped everything, treat as "no filters".
-        if not filters:
+        if not filters_dict:
             filters = None
+        else:
+            filters = filters_dict
 
     # sort: if field is blank/whitespace or sort is not a dict, treat as "no sort".
     if not isinstance(sort, dict):
@@ -626,7 +630,7 @@ def apply_calibration_filters(query: Q, filters: dict[str, Any]) -> Q:
     :return: Q object with calibration-specific filters applied.
     """
     # Make a shallow copy and remove 'status'
-    filters = {k: v for k, v in (filters or {}).items() if k != "status"}
+    filters = {k: v for k, v in filters.items() if k != "status"}
 
     return _apply_shared_filters(
         query, filters,
@@ -1516,7 +1520,7 @@ def get_jobs(
         - date_range reflects the possible range of created_at dates for this job set BEFORE user filtering (after run_status restriction).
         - id_range reflects the possible range of job IDs for this job set BEFORE user filtering (after run_status restriction).
     """
-    filters = filters or {}
+    filters_dict: dict[str, Any] = filters or {}
     order_by = resolve_sort(sort, CalibrationSortField)
 
     # These are Status model instances (not IDs)
@@ -1540,7 +1544,7 @@ def get_jobs(
         # to the base query. The 'status' filter is applied later
         # after annotation of the derived combined_status field.
         # ------------------------------------------------------------------
-        query = apply_calibration_filters(query, filters)
+        query = apply_calibration_filters(query, filters_dict)
 
         # ───── Build base queryset ─────
         # Build base queryset; validation-status annotations will be applied next.
@@ -1550,7 +1554,7 @@ def get_jobs(
         # Also annotate _status_lower only if we will use it (status filter present).
         base_qs = annotate_calibration_combined_status(
             base_qs,
-            include_status_lower=bool(filters.get("status")),
+            include_status_lower=bool(filters_dict.get("status")),
         )
 
         if not ids_only:
@@ -1607,9 +1611,9 @@ def get_jobs(
         # derived combined_status value, not the raw calibration status.
         # This ensures ids_only and full-detail return the same job set.
         # ─────────────────────────────────────────────────────────────
-        if "status" in filters and filters["status"]:
+        if "status" in filters_dict and filters_dict["status"]:
             # Normalize to lowercase for case-insensitive matching
-            normalized_statuses = [s.strip().lower() for s in filters["status"]]
+            normalized_statuses = [s.strip().lower() for s in filters_dict["status"]]
 
             # _status_lower already exists (include_status_lower=True above) when a status filter is present.
             base_qs = base_qs.filter(_status_lower__in=normalized_statuses)
@@ -1916,7 +1920,7 @@ def _get_forecast_or_hindcast_base_jobs_internal(
                                     that all cold start fields are present.
     :return: Tuple (results, total_count, date_range, id_range).
     """
-    filters = filters or {}
+    filters_dict: dict[str, Any] = filters or {}
     order_by = resolve_sort(sort, sort_enum)
 
     with readonly_transaction():
@@ -1931,7 +1935,7 @@ def _get_forecast_or_hindcast_base_jobs_internal(
         date_range, id_range = compute_range(model, query)
 
         # Now apply user filters
-        query = apply_forecast_filters(query, filters)
+        query = apply_forecast_filters(query, filters_dict)
 
         base_qs = model.objects.filter(query)
 
@@ -2383,7 +2387,7 @@ def get_verification_jobs_internal(
           (after run_status restriction).
         - gage_list is returned only when get_gages is true.
     """
-    filters = filters or {}
+    filters_dict: dict[str, Any] = filters or {}
     order_by = resolve_sort(sort, VerificationSortField)
 
     with readonly_transaction():
@@ -2397,7 +2401,7 @@ def get_verification_jobs_internal(
         date_range, id_range = compute_range(VerificationRun, query)
 
         # Now apply user filters
-        query = apply_verification_filters(query, filters)
+        query = apply_verification_filters(query, filters_dict)
 
         base_qs = VerificationRun.objects.filter(query)
 

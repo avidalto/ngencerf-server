@@ -333,6 +333,7 @@ class CreateHindcastRequestSerializer(CalibrationRunIdSerializer):
     cold_start_date = serializers.DateTimeField(required=False, allow_null=True)
     cold_start_run_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     logging_config = LoggingConfigSerializer(required=False)
+    validate_only = serializers.BooleanField(default=False)
 
 
 ##################################
@@ -897,15 +898,19 @@ class CreateAndRunColdStartResponseSerializer(CalibrationRunIdSerializer, ColdSt
     cold_start_status = serializers.CharField(required=True, validators=[enum_validator(StatusEnum, allow_blank=False)])
 
 
-class CreateAndRunForecastResponseSerializer(CalibrationRunIdSerializer, ForecastRunIdSerializer):
+class CreateAndRunForecastResponseSerializer(CalibrationRunIdSerializer, ForecastRunIdSerializer, ColdStartRunIdSerializer):
     message = serializers.CharField(required=True)
-    cold_start_run_id = serializers.IntegerField(required=True, allow_null=True, min_value=1)
     submit_date = serializers.DateTimeField(required=True, allow_null=False)
 
 
 class CreateAndRunHindcastResponseSerializer(CalibrationRunIdSerializer, HindcastRunIdSerializer, ColdStartRunIdSerializer):
     message = serializers.CharField(required=True)
     submit_date = serializers.DateTimeField(required=True, allow_null=False)
+
+
+class CreateAndValidateHindcastResponseSerializer(CalibrationRunIdSerializer):
+    message = serializers.CharField(required=True)
+    cold_start_run_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
 
 
 # Geopackage from Data Services
