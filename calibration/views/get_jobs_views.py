@@ -1954,6 +1954,7 @@ def _get_forecast_or_hindcast_base_jobs_internal(
             'submit_date',
             'calibration_run__gage__gage_id',
             'status__name',
+            'cold_start_run_id',
             'cold_start_run__cold_start_date',
             'cold_start_run__status__name',
             'cold_start_run__submit_date',
@@ -1975,20 +1976,20 @@ def _get_forecast_or_hindcast_base_jobs_internal(
         row['gage_id'] = row.pop('calibration_run__gage__gage_id')
         row[response_status_key] = row.pop('status__name')
 
+        cold_start_run_id = row.pop('cold_start_run_id')
         cold_date = row.pop('cold_start_run__cold_start_date')
         cold_status = row.pop('cold_start_run__status__name')
         cold_submit = row.pop('cold_start_run__submit_date')
 
         # Hindcast always requires a cold start, so all cold start fields must be present.
-        if include_hindcast_fields and (
-                cold_date is None or cold_status is None or cold_submit is None
-        ):
+        if include_hindcast_fields and cold_start_run_id is None:
             raise ValueError(
                 f"{response_id_key}={row[response_id_key]} is missing required cold_start data."
             )
 
-        if cold_date or cold_status:
+        if cold_start_run_id is not None:
             row['cold_start'] = {
+                'cold_start_run_id': cold_start_run_id,
                 'cold_start_date': cold_date,
                 'cold_start_status': cold_status,
                 'cold_start_submit_date': cold_submit,
