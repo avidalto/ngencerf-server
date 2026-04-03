@@ -35,10 +35,14 @@ urlpatterns = [
          name="getCalibrationJobsForForecast"),
     path('calibration/get_validation_jobs/', calibration.views.get_jobs_views.get_validation_jobs, name="getValidationJobs"),
     path('calibration/get_forecast_jobs/', calibration.views.get_jobs_views.get_forecast_jobs, name="getForecastJobs"),
+    path('calibration/get_hindcast_jobs/', calibration.views.get_jobs_views.get_hindcast_jobs, name="getHindcastJobs"),
     path('calibration/get_verification_jobs/', calibration.views.get_jobs_views.get_verification_jobs, name="getVerificationJobs"),
-    path('calibration/get_calibration_jobs_summary/', calibration.views.get_jobs_views.get_calibration_jobs_summary, name="getCalibrationJobsSummary"),
+    path('calibration/get_calibration_jobs_summary/', calibration.views.get_jobs_views.get_calibration_jobs_summary,
+         name="getCalibrationJobsSummary"),
     path('calibration/get_forecast_jobs_for_verification/', calibration.views.get_jobs_views.get_forecast_jobs_for_verification,
          name="getForecastJobsForVerification"),
+    path('calibration/get_hindcast_jobs_for_verification/', calibration.views.get_jobs_views.get_hindcast_jobs_for_verification,
+         name="getHindcastJobsForVerification"),
     path('calibration/get_calibration_gages/', calibration.views.get_jobs_views.get_calibration_gages, name="getCalibrationGages"),
     path('calibration/get_calibration_gages_for_forecast/', calibration.views.get_jobs_views.get_calibration_gages_for_forecast,
          name="getCalibrationGagesForForecast"),
@@ -47,6 +51,9 @@ urlpatterns = [
     path('calibration/get_forecast_gages/', calibration.views.get_jobs_views.get_forecast_gages, name="getForecastGages"),
     path('calibration/get_forecast_gages_for_verification/', calibration.views.get_jobs_views.get_forecast_gages_for_verification,
          name="getForecastGagesForVerification"),
+    path('calibration/get_hindcast_gages/', calibration.views.get_jobs_views.get_hindcast_gages, name="getHindcastGages"),
+    path('calibration/get_hindcast_gages_for_verification/', calibration.views.get_jobs_views.get_hindcast_gages_for_verification,
+         name="getHindcastGagesForVerification"),
     path('calibration/get_verification_gages/', calibration.views.get_jobs_views.get_verification_gages, name="getVerificationGages"),
 
     ##################################
@@ -130,7 +137,8 @@ urlpatterns = [
     path('calibration/get_forecast_timeseries_data/', calibration_forecast_views.get_forecast_timeseries_data, name="getForecastTimeseriesData"),
     path('calibration/delete_forecast_job/', calibration_forecast_views.delete_forecast_job, name="deleteForecastJob"),
     path('calibration/delete_hindcast_job/', calibration_forecast_views.delete_forecast_job, name="deleteHindcastJob"),
-    path('calibration/get_cold_start_jobs_for_configuration/', calibration_forecast_views.get_cold_start_jobs_for_configuration, name="getColdStartJobsForConfiguration"),
+    path('calibration/get_cold_start_jobs_for_configuration/', calibration_forecast_views.get_cold_start_jobs_for_configuration,
+         name="getColdStartJobsForConfiguration"),
 
     ##################################
     # Verification

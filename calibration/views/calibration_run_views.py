@@ -22,13 +22,13 @@ from calibration.models.hindcast_run import HindcastRun
 from calibration.run_util.run_common import cancel_job_common, submit_job
 from calibration.run_util.run_ngen_cal_pw import SlurmCallbackStatusEnum, run_calibration_job_callback_pw, run_validation_job_callback_pw, \
     run_forecast_job_callback_pw, run_cold_start_job_callback_pw, run_verification_job_callback_pw, run_hindcast_job_callback_pw
-from calibration.util.calibration_validators import CalibrationRunSerializer, GenericResponseSerializer, \
+from calibration.util.calibration_validators import CalibrationRunIdSerializer, GenericResponseSerializer, \
     ErrorResponseSerializer, ReportIterationSerializer, SubmitCalibrationJobResponseSerializer, GetIterationsResponseSerializer, \
     CalibrationJobSlurmCallbackRequestSerializer, ValidationJobSlurmCallbackRequestSerializer, EmptySerializer, \
     GetStatusForCalibrationResponseSerializer, GetStatusForComparisonRequestSerializer, GetStatusForComparisonResponseSerializer, \
     CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSerializer, ForecastJobSlurmCallbackRequestSerializer, \
     CancelJobResponseSerializer, \
-    ValidationRunSerializer, GenericResponseSerializerWithValidator, RunCalibrationJob, ColdStartJobSlurmCallbackRequestSerializer, \
+    ValidationRunIdSerializer, GenericResponseSerializerWithValidator, RunCalibrationJob, ColdStartJobSlurmCallbackRequestSerializer, \
     VerificationJobSlurmCallbackRequestSerializer, GetStatusForValidationResponseSerializer, \
     GetStatusForForecastResponseSerializer, GetStatusForVerificationResponseSerializer, GetStatusRequestSerializer, \
     HindcastJobSlurmCallbackRequestSerializer
@@ -823,7 +823,7 @@ def should_include_metrics(run_status: Status, include_performance_metrics: bool
 
 
 @extend_schema(
-    request=CalibrationRunSerializer,
+    request=CalibrationRunIdSerializer,
     responses={
         200: GenericResponseSerializer,
         400: OpenApiResponse(
@@ -848,7 +848,7 @@ def process_calibration_output(request):
     data = request.data if request.method == 'POST' else request.query_params.dict()
 
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
-    validator, error_return = validate_request(CalibrationRunSerializer, data)
+    validator, error_return = validate_request(CalibrationRunIdSerializer, data)
     if error_return:
         return error_return
 
@@ -875,7 +875,7 @@ def process_calibration_output(request):
 
 
 @extend_schema(
-    request=ValidationRunSerializer,
+    request=ValidationRunIdSerializer,
     responses={
         200: GenericResponseSerializerWithValidator,
         400: OpenApiResponse(
@@ -899,7 +899,7 @@ def process_swe_timeseries(request: Request) -> Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
 
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
-    validator, error_return = validate_request(ValidationRunSerializer, data)
+    validator, error_return = validate_request(ValidationRunIdSerializer, data)
     if error_return:
         return error_return
 
@@ -1034,7 +1034,7 @@ def report_iteration(request):
 
 
 @extend_schema(
-    request=CalibrationRunSerializer,
+    request=CalibrationRunIdSerializer,
     responses={
         200: GetIterationsResponseSerializer,
         400: OpenApiResponse(
@@ -1061,7 +1061,7 @@ def get_iteration(request: Request) -> Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
-    validator, error_return = validate_request(CalibrationRunSerializer, data)
+    validator, error_return = validate_request(CalibrationRunIdSerializer, data)
     if error_return:
         return error_return
 

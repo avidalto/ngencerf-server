@@ -16,7 +16,7 @@ from rest_framework.response import Response
 from calibration.enums import StatusEnum, ForcingSourceEnum, ObservationalSourceEnum, GeopackageSourceEnum, JobGenesis
 from calibration.models import CalibrationFormulation, CalibrationStopCriteria, Gage, CalibrationRun, CalibrationModulePropertyValue
 from calibration.util.caching import get_cached_module_by_name, get_cached_modules_by_id, get_gage_by_id, get_cached_module_properties
-from calibration.util.calibration_validators import CalibrationRunSerializer, ExportResponseSerializer, ErrorResponseSerializer, \
+from calibration.util.calibration_validators import CalibrationRunIdSerializer, ExportResponseSerializer, ErrorResponseSerializer, \
     LoadCalibrationJobSerializer, LoadCalibrationRunResponseSerializer
 from calibration.util.geopkg import gpkg_to_png_selected_layers, get_geometry_from_gpkg
 from calibration.util.ngen_locations import get_ngen_logging_file, get_geopackage_file_path
@@ -401,7 +401,7 @@ def import_calibration_run_data(request: Request,
 
 
 @extend_schema(
-    request=CalibrationRunSerializer,
+    request=CalibrationRunIdSerializer,
     responses={
         200: ExportResponseSerializer,
         400: OpenApiResponse(
@@ -431,7 +431,7 @@ def export_job(request: Request) -> Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
-    validator, error_return = validate_request(CalibrationRunSerializer, data)
+    validator, error_return = validate_request(CalibrationRunIdSerializer, data)
     if error_return:
         return error_return
 

@@ -17,6 +17,7 @@
       <sourceFolder url="file://$MODULE_DIR$/cli" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/.venv-cerf" />
       <excludeFolder url="file://$MODULE_DIR$/logs" />
+      <excludeFolder url="file://$MODULE_DIR$/calibration/migrations" />
       <excludePattern pattern=".venv*" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.11 (cerfServer)" jdkType="Python SDK" />

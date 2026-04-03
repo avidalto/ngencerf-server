@@ -1,15 +1,13 @@
 from django.db import models
 
-from calibration.models.base_run import BaseRun
+from calibration.models.ForecastBaseRun import ForecastBaseRun
 
 
-class HindcastRun(BaseRun):
+class HindcastRun(ForecastBaseRun):
     calibration_run = models.ForeignKey('CalibrationRun', null=False, related_name="hindcasts_from_calibration", on_delete=models.CASCADE, db_index=True)
     cold_start_run = models.ForeignKey('ColdStartRun', null=True, related_name="hindcasts_from_cold_start", on_delete=models.CASCADE, db_index=True)
-    configuration = models.ForeignKey("ForecastConfiguration", null=False, on_delete=models.RESTRICT)
     interval_cycle = models.IntegerField(null=False)
     num_iterations = models.IntegerField(null=False)
-    cycle_date = models.DateTimeField(null=False)
 
     class Meta:
         db_table = 'hindcast_run'
@@ -19,7 +17,6 @@ class HindcastRun(BaseRun):
             models.Index(fields=['status'], name='idx_hindcast_status'),
             models.Index(fields=['cycle_date'], name='idx_hindcast_cycle_date'),
             models.Index(fields=['calibration_run', 'status', '-id'], name='idx_hcst_run_status_id_desc')
-
         ]
 
     def __str__(self):

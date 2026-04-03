@@ -1,13 +1,11 @@
 from django.db import models
 
-from calibration.models.base_run import BaseRun
+from calibration.models.ForecastBaseRun import ForecastBaseRun
 
 
-class ForecastRun(BaseRun):
+class ForecastRun(ForecastBaseRun):
     calibration_run = models.ForeignKey('CalibrationRun', null=False, related_name="forecasts_from_calibration", on_delete=models.CASCADE, db_index=True)
     cold_start_run = models.ForeignKey('ColdStartRun', null=True, related_name="forecasts_from_cold_start", on_delete=models.CASCADE, db_index=True)
-    configuration = models.ForeignKey("ForecastConfiguration", null=False, on_delete=models.RESTRICT)
-    cycle_date = models.DateTimeField(null=False)
 
     class Meta:
         db_table = 'forecast_run'
@@ -17,7 +15,6 @@ class ForecastRun(BaseRun):
             models.Index(fields=['status'], name='idx_forecast_status'),
             models.Index(fields=['cycle_date'], name='idx_forecast_cycle_date'),
             models.Index(fields=['calibration_run', 'status', '-id'], name='idx_fcst_run_status_id_desc')
-
         ]
 
     def __str__(self):

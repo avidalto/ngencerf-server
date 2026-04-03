@@ -13,8 +13,8 @@ from calibration.enums import ForecastConfigEnum, StatusEnum
 from calibration.models import ColdStartRun
 from calibration.run_util.run_common import submit_job
 from calibration.util.calibration_validators import ErrorResponseSerializer, LoadForecastTabResponseSerializer, \
-    ForecastRunSerializer, CreateAndRunForecastResponseSerializer, DeleteForecastRunResponseSerializer, ForecastRunDataResponseSerializer, \
-    LoadForecastTabRequestSerializer, HindcastRunSerializer, CreateAndRunHindcastResponseSerializer, \
+    ForecastRunIdSerializer, CreateAndRunForecastResponseSerializer, DeleteForecastRunResponseSerializer, ForecastRunDataResponseSerializer, \
+    LoadForecastTabRequestSerializer, HindcastRunIdSerializer, CreateAndRunHindcastResponseSerializer, \
     DeleteHindcastRunResponseSerializer, ForecastConfigurationSerializer, GetColdStartJobsForConfigurationResponseSerializer
 from calibration.util.ngen_locations import get_forecast_dir, get_forecast_output_file, get_cold_start_output_file, \
     get_hindcast_dir
@@ -127,7 +127,7 @@ def load_forecast_tab(request: Request) -> Response:
 
 
 @extend_schema(
-    request=ForecastRunSerializer,
+    request=ForecastRunIdSerializer,
     responses={
         200: CreateAndRunForecastResponseSerializer,
         400: OpenApiResponse(
@@ -153,7 +153,7 @@ def clone_and_run_forecast_job(request: Request) -> Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
-    validator, error_return = validate_request(ForecastRunSerializer, data)
+    validator, error_return = validate_request(ForecastRunIdSerializer, data)
     if error_return:
         return error_return
 
@@ -189,7 +189,7 @@ def clone_and_run_forecast_job(request: Request) -> Response:
 
 
 @extend_schema(
-    request=HindcastRunSerializer,
+    request=HindcastRunIdSerializer,
     responses={
         200: CreateAndRunHindcastResponseSerializer,
         400: OpenApiResponse(
@@ -215,7 +215,7 @@ def clone_and_run_hindcast_job(request: Request) -> Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
-    validator, error_return = validate_request(HindcastRunSerializer, data)
+    validator, error_return = validate_request(HindcastRunIdSerializer, data)
     if error_return:
         return error_return
 
@@ -253,7 +253,7 @@ def clone_and_run_hindcast_job(request: Request) -> Response:
 
 
 @extend_schema(
-    request=ForecastRunSerializer,
+    request=ForecastRunIdSerializer,
     responses={
         200: ForecastRunDataResponseSerializer,
         400: OpenApiResponse(
@@ -279,7 +279,7 @@ def get_forecast_timeseries_data(request: Request) -> Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
-    validator, error_return = validate_request(ForecastRunSerializer, data)
+    validator, error_return = validate_request(ForecastRunIdSerializer, data)
     if error_return:
         return error_return
 
@@ -345,7 +345,7 @@ def get_forecast_timeseries_data(request: Request) -> Response:
 
 
 @extend_schema(
-    request=ForecastRunSerializer,
+    request=ForecastRunIdSerializer,
     responses={
         200: DeleteForecastRunResponseSerializer,
         400: OpenApiResponse(
@@ -372,7 +372,7 @@ def delete_forecast_job(request: Request) -> Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
-    validator, error_return = validate_request(ForecastRunSerializer, data)
+    validator, error_return = validate_request(ForecastRunIdSerializer, data)
     if error_return:
         return error_return
 
@@ -419,7 +419,7 @@ def delete_forecast_job(request: Request) -> Response:
 
 
 @extend_schema(
-    request=HindcastRunSerializer,
+    request=HindcastRunIdSerializer,
     responses={
         200: DeleteHindcastRunResponseSerializer,
         400: OpenApiResponse(
@@ -445,7 +445,7 @@ def delete_hindcast_job(request: Request) -> Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
-    validator, error_return = validate_request(HindcastRunSerializer, data)
+    validator, error_return = validate_request(HindcastRunIdSerializer, data)
     if error_return:
         return error_return
 

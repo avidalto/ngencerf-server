@@ -20,7 +20,7 @@ from calibration.enums import StatusEnum, ValidationType
 from calibration.enums_vanilla import SecondaryDataEnum
 from calibration.models import ValidationRun, Module
 from calibration.util.calibration_validators import GetImagesByDateResponseSerializer, \
-    ErrorResponseSerializer, ValidationRunSerializer, GetTimeseriesDataResponseSerializer, GetSoilMoistureImagesByDateRequestSerializer, \
+    ErrorResponseSerializer, ValidationRunIdSerializer, GetTimeseriesDataResponseSerializer, GetSoilMoistureImagesByDateRequestSerializer, \
     GetSWEImagesByDateRequestSerializer
 from calibration.util.file_util import get_single_file
 from calibration.util.ngen_locations import get_geopackage_dir_for_job, get_swe_netcdf_file, get_validation_output_valid, \
@@ -379,7 +379,7 @@ def _get_secondary_timeseries_data(
     data = request.data if request.method == "POST" else request.query_params.dict()
     logger.debug(f"{get_caller_name()}() request from {get_user_email(request)} - {data}")
 
-    validator, error_return = validate_request(ValidationRunSerializer, data)
+    validator, error_return = validate_request(ValidationRunIdSerializer, data)
     if error_return:
         return error_return
 
@@ -446,7 +446,7 @@ def _get_secondary_timeseries_data(
 
 
 @extend_schema(
-    request=ValidationRunSerializer,
+    request=ValidationRunIdSerializer,
     responses={
         200: GetTimeseriesDataResponseSerializer,
         400: OpenApiResponse(
@@ -473,7 +473,7 @@ def get_swe_timeseries_data(request: Request) -> Response:
 
 
 @extend_schema(
-    request=ValidationRunSerializer,
+    request=ValidationRunIdSerializer,
     responses={
         200: GetTimeseriesDataResponseSerializer,
         400: OpenApiResponse(

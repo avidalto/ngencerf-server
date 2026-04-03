@@ -18,7 +18,7 @@ from calibration.run_util.run_common import submit_job
 from calibration.util.calibration_validators import ErrorResponseSerializer, VerificationJobSerializer, \
     CreateAndRunVerificationRequestSerializer, CreateAndRunVerificationResponseSerializer, \
     GetVerificationPlotNamesResponseSerializer, GetVerificationPlotRequestSerializer, \
-    GetVerificationPlotResponseSerializer, DeleteVerificationJobResponseSerializer
+    GetVerificationPlotResponseSerializer, DeleteVerificationJobResponseSerializer, VerificationRunIdSerializer
 from calibration.util.ngen_locations import get_verification_run_dir, get_verification_yaml_config_file
 from calibration.views.called_from import get_caller_name
 from calibration.views.common import handle_exceptions, validate_response, validate_request, \
@@ -95,7 +95,7 @@ def create_and_run_verification_job(request: Request) -> Response:
 
 
 @extend_schema(
-    request=VerificationJobSerializer,
+    request=VerificationRunIdSerializer,
     responses={
         200: GetVerificationPlotNamesResponseSerializer,
         400: OpenApiResponse(
@@ -121,7 +121,7 @@ def get_verification_plot_names(request: Request) -> Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
-    validator, error_return = validate_request(VerificationJobSerializer, data)
+    validator, error_return = validate_request(VerificationRunIdSerializer, data)
     if error_return:
         return error_return
 
@@ -258,7 +258,7 @@ def get_verification_plot(request: Request) -> Response:
 
 
 @extend_schema(
-    request=VerificationJobSerializer,
+    request=VerificationRunIdSerializer,
     responses={
         200: DeleteVerificationJobResponseSerializer,
         400: OpenApiResponse(
@@ -284,7 +284,7 @@ def delete_verification_job(request: Request) -> Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
-    validator, error_return = validate_request(VerificationJobSerializer, data)
+    validator, error_return = validate_request(VerificationRunIdSerializer, data)
     if error_return:
         return error_return
 

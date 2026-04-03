@@ -18,7 +18,7 @@ general:
   # [optional] list of usgs gage IDs or NWM links IDs; if blank, a static location_list_file containing 100 gages will be used
   location_list: ["01123000", "01010000"]
 
-  # [optional] must be specified if locaiton_list is not blank; currently supported options: usgs_gage, nwm30_link 
+  # [optional] must be specified if location_list is not blank; currently supported options: usgs_gage, nwm30_link
   location_type: usgs_gage
 
   variable_name: streamflow # currently only 'streamflow' is supported

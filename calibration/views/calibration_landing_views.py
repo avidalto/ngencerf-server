@@ -21,7 +21,7 @@ from calibration.models import CalibrationRun, ValidationRun, ForecastRun
 from calibration.run_util.run_common import submit_job
 from calibration.util.calibration_validators import FooterResponseSerializer, \
     ErrorResponseSerializer, CreateCalibrationRunResponseSerializer, \
-    CalibrationRunSerializer, ImportResponseSerializer, \
+    CalibrationRunIdSerializer, ImportResponseSerializer, \
     CreateAndRunValidationResponseSerializer, CreateValidationRequestSerializer, \
     EmptySerializer, CreateForecastRequestSerializer, CreateAndRunForecastResponseSerializer, \
     ArchiveJobRequestSerializer, GetGitInfoResponseSerializer, CalibrationRunIdList, CalibrationRunListResponse, ImportSerializer, \
@@ -645,7 +645,7 @@ def get_git_info(request: Request) -> Response:
 
 
 @extend_schema(
-    request=CalibrationRunSerializer,
+    request=CalibrationRunIdSerializer,
     responses={
         200: ImportResponseSerializer,
         400: OpenApiResponse(
@@ -674,7 +674,7 @@ def clone_job(request: Request) -> Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
-    validator, error_return = validate_request(CalibrationRunSerializer, data)
+    validator, error_return = validate_request(CalibrationRunIdSerializer, data)
     if error_return:
         return error_return
 

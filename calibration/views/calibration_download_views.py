@@ -17,7 +17,7 @@ from rest_framework.response import Response
 
 from calibration.enums import StatusEnum
 from calibration.util import cloud_util
-from calibration.util.calibration_validators import CalibrationRunSerializer, GenericMessageWithIdResponseSerializer, ErrorResponseSerializer, \
+from calibration.util.calibration_validators import CalibrationRunIdSerializer, GenericMessageWithIdResponseSerializer, ErrorResponseSerializer, \
     GetZipStatusSerializer, GetZipDownloadUrlResponseSerializer
 from calibration.util.cloud_util import delete_expired_s3_objects_under_prefix, S3ProfileError, S3CredentialsExpired, \
     normalize_s3_prefix, s3_prefix_exists, join_url
@@ -47,7 +47,7 @@ def get_zip_cache_key(calibration_run_id: int) -> str:
 
 
 @extend_schema(
-    request=CalibrationRunSerializer,
+    request=CalibrationRunIdSerializer,
     responses={
         200: GenericMessageWithIdResponseSerializer,
         400: OpenApiResponse(
@@ -84,7 +84,7 @@ def start_zip_for_calibration_job(request: Request) -> Response:
     data = request.data if request.method == "POST" else request.query_params.dict()
     logger.debug(f"{get_caller_name()}() request from {get_user_email(request)} - {data}")
 
-    validator, error_return = validate_request(CalibrationRunSerializer, data)
+    validator, error_return = validate_request(CalibrationRunIdSerializer, data)
     if error_return:
         return error_return
 
@@ -293,7 +293,7 @@ def start_zip_for_calibration_job(request: Request) -> Response:
 
 
 @extend_schema(
-    request=CalibrationRunSerializer,
+    request=CalibrationRunIdSerializer,
     responses={
         200: GetZipStatusSerializer,
         400: OpenApiResponse(
@@ -332,7 +332,7 @@ def get_zip_status(request: Request) -> Response:
     data = request.data if request.method == "POST" else request.query_params.dict()
     logger.debug(f"{get_caller_name()}() request from {get_user_email(request)} - {data}")
 
-    validator, error_response = validate_request(CalibrationRunSerializer, data)
+    validator, error_response = validate_request(CalibrationRunIdSerializer, data)
     if error_response:
         return error_response
 
@@ -498,7 +498,7 @@ def cleanup_expired_zips() -> None:
 
 
 @extend_schema(
-    request=CalibrationRunSerializer,
+    request=CalibrationRunIdSerializer,
     responses={
         200: GetZipDownloadUrlResponseSerializer,
         400: OpenApiResponse(
@@ -518,7 +518,7 @@ def get_calibration_zip_download_url(request: Request) -> Response:
     data = request.data if request.method == "POST" else request.query_params.dict()
     logger.debug(f"{get_caller_name()}() request from {get_user_email(request)} - {data}")
 
-    validator, error_response = validate_request(CalibrationRunSerializer, data)
+    validator, error_response = validate_request(CalibrationRunIdSerializer, data)
     if error_response:
         return error_response
 
@@ -582,7 +582,7 @@ def get_calibration_job_zip(request: Request) -> FileResponse | Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
-    validator, error_return = validate_request(CalibrationRunSerializer, data)
+    validator, error_return = validate_request(CalibrationRunIdSerializer, data)
     if error_return:
         return error_return
 

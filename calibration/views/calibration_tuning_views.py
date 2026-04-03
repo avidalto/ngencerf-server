@@ -23,7 +23,7 @@ from calibration.enums_vanilla import JobType
 from calibration.models import CalibrationFormulation, CalibrationParameter, CalibrationRun
 from calibration.util import cloud_util
 from calibration.util.caching import get_cached_module_by_name, have_LSTM, get_cached_modules_by_id
-from calibration.util.calibration_validators import CalibrationRunSerializer, SaveTuningRequestSerializer, LoadTuningResponseSerializer, \
+from calibration.util.calibration_validators import CalibrationRunIdSerializer, SaveTuningRequestSerializer, LoadTuningResponseSerializer, \
     ErrorResponseSerializer, UploadUserParameterFile, UserParameterFileUploadResponse, \
     ValidateParametersResponseSerializer, SaveTuningResponseSerializer
 from calibration.util.ngen_locations import get_forcing_dir_for_job
@@ -40,7 +40,7 @@ MAX_TIME = datetime(MINYEAR, 1, 1, 0, 0, 0).replace(tzinfo=timezone.utc)
 
 
 @extend_schema(
-    request=CalibrationRunSerializer,
+    request=CalibrationRunIdSerializer,
     responses={
         200: LoadTuningResponseSerializer,
         400: OpenApiResponse(
@@ -74,7 +74,7 @@ def load_tuning_tab(request: Request) -> Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
-    validator, error_return = validate_request(CalibrationRunSerializer, data)
+    validator, error_return = validate_request(CalibrationRunIdSerializer, data)
     if error_return:
         return error_return
 
@@ -654,7 +654,7 @@ def upload_user_parameters(request: Request) -> Response:
 
 
 @extend_schema(
-    request=CalibrationRunSerializer,
+    request=CalibrationRunIdSerializer,
     responses={
         200: ValidateParametersResponseSerializer,
         400: OpenApiResponse(
@@ -683,7 +683,7 @@ def validate_parameters(request: Request) -> Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
-    validator, error_return = validate_request(CalibrationRunSerializer, data)
+    validator, error_return = validate_request(CalibrationRunIdSerializer, data)
     if error_return:
         return error_return
 
