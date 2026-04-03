@@ -24,7 +24,6 @@ CONFIG_TEMPLATE = {
         "forcing_template_dir": BMI_FORCING_TEMPLATES,
         "cold_start_datetime": None
     }
-
 }
 
 

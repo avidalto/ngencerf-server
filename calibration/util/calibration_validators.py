@@ -339,10 +339,9 @@ class CreateForecastRequestSerializer(CalibrationRunIdSerializer):
 
 class CreateHindcastRequestSerializer(CalibrationRunIdSerializer):
     configuration_name = serializers.CharField(required=True, validators=[enum_validator(ForecastConfigEnum)])
-    cycle_date = serializers.DateTimeField(required=True, allow_null=False)
+    cycle_date = serializers.DateTimeField(required=False, allow_null=True)
     interval_cycle = serializers.ChoiceField(choices=[1, 3, 6, 12, 18, 24], required=True)
     num_iterations = serializers.IntegerField(required=True, allow_null=False, validators=[MinValueValidator(1)])
-    cold_start_cycle_date = serializers.DateTimeField(required=False, allow_null=True)
     cold_start_date = serializers.DateTimeField(required=False, allow_null=True)
     cold_start_run_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     logging_config = LoggingConfigSerializer(required=False)
