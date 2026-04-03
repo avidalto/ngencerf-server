@@ -1,6 +1,6 @@
 from django.db import models
 
-from calibration.models.ForecastBaseRun import ForecastBaseRun
+from calibration.models.forecast_base_run import ForecastBaseRun
 
 
 class ForecastRun(ForecastBaseRun):

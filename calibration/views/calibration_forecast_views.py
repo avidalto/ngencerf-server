@@ -15,7 +15,8 @@ from calibration.run_util.run_common import submit_job
 from calibration.util.calibration_validators import ErrorResponseSerializer, LoadForecastTabResponseSerializer, \
     ForecastRunIdSerializer, CreateAndRunForecastResponseSerializer, DeleteForecastRunResponseSerializer, ForecastRunDataResponseSerializer, \
     LoadForecastTabRequestSerializer, HindcastRunIdSerializer, CreateAndRunHindcastResponseSerializer, \
-    DeleteHindcastRunResponseSerializer, ForecastConfigurationSerializer, GetColdStartJobsForConfigurationResponseSerializer
+    DeleteHindcastRunResponseSerializer, GetColdStartJobsForConfigurationResponseSerializer, \
+    HindcastConfigurationSerializer
 from calibration.util.ngen_locations import get_forecast_dir, get_forecast_output_file, get_cold_start_output_file, \
     get_hindcast_dir
 from calibration.views.calibration_secondary_data_views import read_csv_as_json
@@ -488,7 +489,7 @@ def delete_hindcast_job(request: Request) -> Response:
 
 
 @extend_schema(
-    request=ForecastConfigurationSerializer,
+    request=HindcastConfigurationSerializer,
     responses={
         200: GetColdStartJobsForConfigurationResponseSerializer,
         400: OpenApiResponse(
@@ -514,11 +515,19 @@ def get_cold_start_jobs_for_configuration(request: Request) -> Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
-    validator, error_return = validate_request(ForecastConfigurationSerializer, data)
+    validator, error_return = validate_request(HindcastConfigurationSerializer, data)
     if error_return:
         return error_return
 
+    calibration_run_id = validator.get('calibration_run_id')
     configuration_name = validator.get('configuration_name')
+
+    calibration_run, error_return = get_calibration_run(
+        calibration_run_id, request.user, run_status=[StatusEnum.DONE]
+    )
+    if error_return:
+        return error_return
+    assert calibration_run is not None
 
     configuration = ForecastConfigEnum.get_instance(configuration_name)
 
@@ -532,7 +541,7 @@ def get_cold_start_jobs_for_configuration(request: Request) -> Response:
         ColdStartRun.objects
         .select_related('status', 'calibration_run', 'calibration_run__owner')
         .filter(
-            calibration_run__owner=request.user,
+            calibration_run=calibration_run,
             status=StatusEnum.DONE.db_instance
         )
         .order_by('-cold_start_date')
@@ -558,6 +567,7 @@ def get_cold_start_jobs_for_configuration(request: Request) -> Response:
             'cold_start_run_id': run.id,
             'cold_start_status': run.status.name,  # if run.status else None,
             'cold_start_date': run.cold_start_date,
+            'cold_start_cycle_date': run.cycle_date,
             'cold_start_submit_date': run.submit_date,
         })
 

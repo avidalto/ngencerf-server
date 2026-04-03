@@ -222,6 +222,7 @@ class LogCategory(AbstractEnum):
     CALIBRATION = 'calibration'
     VALIDATION = 'validation'
     FORECAST = 'forecast'
+    HINDCAST = 'hindcast'
     COLD_START = 'cold start'
     VERIFICATION = 'verification'
 

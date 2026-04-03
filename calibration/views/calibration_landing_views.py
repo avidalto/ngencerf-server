@@ -379,14 +379,23 @@ def create_and_run_hindcast(request: Request) -> Response:
     interval_cycle = validator.get('interval_cycle')
     num_iterations = validator.get('num_iterations')
     cold_start_date = validator.get('cold_start_date')
+    cold_start_cycle_date = validator.get('cold_start_cycle_date')
     cold_start_run_id = validator.get('cold_start_run_id')
     logging_config = validator.get('logging_config')
     validate_only = validator.get('validate_only')
 
-    if not cold_start_run_id and not cold_start_date:
-        return ResponseError("You must specify either a cold start date or an existing cold start id")
-    if cold_start_run_id and cold_start_date:
-        return ResponseError("You must specify either a cold start date or an existing cold start id but not both")
+    if cold_start_run_id:
+        if cold_start_date or cold_start_cycle_date:
+            return ResponseError(
+                "You must specify either an existing cold start id, or both cold start cycle date "
+                "and cold start date, but not both"
+            )
+    else:
+        if not cold_start_date or not cold_start_cycle_date:
+            return ResponseError(
+                "You must specify either an existing cold start id, or both cold start cycle date "
+                "and cold start date"
+            )
 
     calibration_run, error_return = get_calibration_run(calibration_run_id, request.user, run_status=[StatusEnum.DONE])
     if error_return:
@@ -483,7 +492,7 @@ def create_and_run_hindcast(request: Request) -> Response:
             calibration_run,
             configuration,
             cold_start_date=cold_start_date,
-            cycle_date=cycle_date
+            cycle_date=cold_start_cycle_date
         )
         run_cold_start = True
 

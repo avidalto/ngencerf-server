@@ -1960,6 +1960,7 @@ def _get_forecast_or_hindcast_base_jobs_internal(
             'status__name',
             'cold_start_run_id',
             'cold_start_run__cold_start_date',
+            'cold_start_run__cycle_date',
             'cold_start_run__status__name',
             'cold_start_run__submit_date',
         ]
@@ -1982,6 +1983,7 @@ def _get_forecast_or_hindcast_base_jobs_internal(
 
         cold_start_run_id = row.pop('cold_start_run_id')
         cold_date = row.pop('cold_start_run__cold_start_date')
+        cold_cycle_date = row.pop('cold_start_run__cycle_date')
         cold_status = row.pop('cold_start_run__status__name')
         cold_submit = row.pop('cold_start_run__submit_date')
 
@@ -1995,6 +1997,7 @@ def _get_forecast_or_hindcast_base_jobs_internal(
             row['cold_start'] = {
                 'cold_start_run_id': cold_start_run_id,
                 'cold_start_date': cold_date,
+                'cold_start_cycle_date': cold_cycle_date,
                 'cold_start_status': cold_status,
                 'cold_start_submit_date': cold_submit,
             }

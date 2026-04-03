@@ -51,23 +51,31 @@ def enum_validator(enum_class, *, allow_blank: bool = True):
 
         if valid_names_lc is None or original_valid_names is None:
             if hasattr(enum_class, "get_all_valid_names"):
-                original_valid_names = list(enum_class.get_all_valid_names())
+                loaded_names = list(enum_class.get_all_valid_names())
             elif hasattr(enum_class, "get_names"):
-                original_valid_names = list(enum_class.get_names())
+                loaded_names = list(enum_class.get_names())
             else:
                 raise RuntimeError(
                     f"Enum class '{enum_class.__name__}' must define either "
                     f"'get_names()' or 'get_all_valid_names()'."
                 )
-            valid_names_lc = {str(name).lower() for name in original_valid_names}
+
+            original_valid_names = loaded_names
+            valid_names_lc = {str(name).lower() for name in loaded_names}
+
+        valid_names = original_valid_names
+        valid_names_lc_local = valid_names_lc
+
+        if valid_names is None or valid_names_lc_local is None:
+            raise RuntimeError("Enum validator failed to initialize valid names.")
 
         # Normalize to string for comparison (prevents .lower() crashes on non-str types)
         original_value = value
         value_lc = str(value).lower()
 
-        if value_lc not in valid_names_lc:
+        if value_lc not in valid_names_lc_local:
             raise serializers.ValidationError(
-                f"Invalid value '{original_value}'. This field must be one of {original_valid_names}."
+                f"Invalid value '{original_value}'. This field must be one of {valid_names}."
             )
 
     return validate_enum
@@ -312,6 +320,10 @@ class ForecastConfigurationSerializer(BaseSerializer):
     configuration_name = serializers.CharField(required=True, validators=[enum_validator(ForecastConfigEnum)])
 
 
+class HindcastConfigurationSerializer(CalibrationRunIdSerializer):
+    configuration_name = serializers.CharField(required=True, validators=[enum_validator(ForecastConfigEnum)])
+
+
 class CreateColdStartRequestSerializer(CalibrationRunIdSerializer):
     configuration_name = serializers.CharField(required=True, validators=[enum_validator(ForecastConfigEnum)])
     cycle_date = serializers.DateTimeField(required=True, allow_null=False)
@@ -330,6 +342,7 @@ class CreateHindcastRequestSerializer(CalibrationRunIdSerializer):
     cycle_date = serializers.DateTimeField(required=True, allow_null=False)
     interval_cycle = serializers.ChoiceField(choices=[1, 3, 6, 12, 18, 24], required=True)
     num_iterations = serializers.IntegerField(required=True, allow_null=False, validators=[MinValueValidator(1)])
+    cold_start_cycle_date = serializers.DateTimeField(required=False, allow_null=True)
     cold_start_date = serializers.DateTimeField(required=False, allow_null=True)
     cold_start_run_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     logging_config = LoggingConfigSerializer(required=False)
@@ -1036,7 +1049,7 @@ class ModulePropertiesSerializer(BaseSerializer):
 # Used by SaveFormulationRequestSerializer and ImportDataSerializer
 def validate_module_properties_against_modules(
         modules: list[str] | set[str],
-        props: list[dict],
+        props: list[dict[str, str]],
 ) -> None:
     module_names = set(modules or [])
     errors: list[str] = []
@@ -1045,15 +1058,15 @@ def validate_module_properties_against_modules(
         errors.append("module_properties cannot be specified unless modules is non-empty")
 
     # membership check
-    for i, p in enumerate(props or []):
-        mod = p.get("module")
+    for i, p in enumerate(props):
+        mod = p["module"]
         if mod not in module_names:
             errors.append(f"[{i}] module '{mod}' is not included in modules")
 
     # uniqueness check
     seen: set[tuple[str, str]] = set()
-    for i, p in enumerate(props or []):
-        key = (p.get("module"), p.get("property_name"))
+    for i, p in enumerate(props):
+        key = (p["module"], p["property_name"])
         if key in seen:
             errors.append(f"[{i}] duplicate property for module '{key[0]}' and property '{key[1]}'")
         seen.add(key)
@@ -1326,6 +1339,13 @@ class GetStatusForForecastResponseSerializer(CommonStatusFieldsMixin, ForecastRu
     cold_start_run = GetStatusColdStartSerializer(required=False, allow_null=True)
 
 
+class GetStatusForHindcastResponseSerializer(CommonStatusFieldsMixin, HindcastRunIdSerializer, CalibrationRunIdSerializer):
+    message = serializers.CharField(required=False)
+    configuration = serializers.CharField(required=True, validators=[enum_validator(ForecastConfigEnum)])
+    cycle_date = serializers.DateTimeField(required=True, allow_null=False)
+    cold_start_run = GetStatusColdStartSerializer(required=False, allow_null=True)
+
+
 class GetStatusForCalibrationResponseSerializer(GenericResponseSerializer, CommonStatusFieldsMixin):
     warnings = serializers.ListField(required=False, child=serializers.CharField(required=True))
     errors = serializers.ListField(required=False, child=serializers.CharField(required=True))
@@ -1471,8 +1491,9 @@ class LoadForecastTabResponseSerializer(BaseSerializer):
 
 class ColdStartJobsResponseSerializer(ColdStartRunIdSerializer):
     cold_start_status = serializers.CharField(required=False, allow_null=True, validators=[enum_validator(StatusEnum, allow_blank=False)])
-    cold_start_date = serializers.DateTimeField(required=True, allow_null=True)
-    cold_start_submit_date = serializers.DateTimeField(required=True, allow_null=True)
+    cold_start_date = serializers.DateTimeField(required=True, allow_null=False)
+    cold_start_cycle_date = serializers.DateTimeField(required=True, allow_null=False)
+    cold_start_submit_date = serializers.DateTimeField(required=True, allow_null=False)
 
 
 class ForecastBaseJobsResponseSerializer(CalibrationRunIdSerializer):
@@ -1737,14 +1758,12 @@ class GetValidationJobsResponseSerializer(BaseSerializer):
 
 
 class GetLogRequestSerializer(CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSerializer):
-    # log_category = serializers.CharField(required=True, validators=[enum_validator(LogCategory, allow_blank=False)])
     log_name = serializers.CharField(required=True, allow_blank=False)
     start = serializers.IntegerField(required=False, default=0, min_value=-1)
     limit = serializers.IntegerField(required=False, default=100, min_value=1)
 
 
 class GetLogStatusRequestSerializer(CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSerializer):
-    # log_category = serializers.CharField(required=True, validators=[enum_validator(LogCategory)])
     log_name = serializers.CharField(required=True)
     byte_offset = serializers.IntegerField(required=True, min_value=0)
 

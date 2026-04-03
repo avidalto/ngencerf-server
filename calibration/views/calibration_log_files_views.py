@@ -62,12 +62,14 @@ def get_log_names(request: Request) -> Response:
     calibration_run_id = validator.get('calibration_run_id')
     validation_run_id = validator.get('validation_run_id')
     forecast_run_id = validator.get('forecast_run_id')
+    hindcast_run_id = validator.get('hindcast_run_id')
     verification_run_id = validator.get('verification_run_id')
 
     logs_by_category, error_return = get_allowed_logs_for_request(
         calibration_run_id=calibration_run_id,
         validation_run_id=validation_run_id,
         forecast_run_id=forecast_run_id,
+        hindcast_run_id=hindcast_run_id,
         verification_run_id=verification_run_id,
         user=request.user,
     )
@@ -152,6 +154,7 @@ def get_log(request: Request) -> Response:
     calibration_run_id = validator.get('calibration_run_id')
     validation_run_id = validator.get('validation_run_id')
     forecast_run_id = validator.get('forecast_run_id')
+    hindcast_run_id = validator.get('hindcast_run_id')
     verification_run_id = validator.get('verification_run_id')
     log_name = validator.get('log_name')
     start = validator.get('start')
@@ -161,6 +164,7 @@ def get_log(request: Request) -> Response:
         calibration_run_id=calibration_run_id,
         validation_run_id=validation_run_id,
         forecast_run_id=forecast_run_id,
+        hindcast_run_id=hindcast_run_id,
         verification_run_id=verification_run_id,
         user=request.user,
     )
@@ -268,6 +272,7 @@ def get_log_status(request: Request) -> Response:
     calibration_run_id = validator.get('calibration_run_id')
     validation_run_id = validator.get('validation_run_id')
     forecast_run_id = validator.get('forecast_run_id')
+    hindcast_run_id = validator.get('hindcast_run_id')
     verification_run_id = validator.get('verification_run_id')
     # log_category = LogCategory(validator.get('log_category'))
     log_name = validator.get('log_name')
@@ -277,6 +282,7 @@ def get_log_status(request: Request) -> Response:
         calibration_run_id=calibration_run_id,
         validation_run_id=validation_run_id,
         forecast_run_id=forecast_run_id,
+        hindcast_run_id=hindcast_run_id,
         verification_run_id=verification_run_id,
         user=request.user,
     )
@@ -318,6 +324,7 @@ def resolve_log_context(
         calibration_run_id: int | None,
         validation_run_id: int | None,
         forecast_run_id: int | None,
+        hindcast_run_id: int | None,
         verification_run_id: int | None,
         user,
 ):
@@ -329,6 +336,7 @@ def resolve_log_context(
         - calibration_run
         - validation_run
         - forecast_run
+        - hindcast_run
         - cold_start_run
         - verification_run
     """
@@ -343,6 +351,7 @@ def resolve_log_context(
 
     validation_run = None
     forecast_run = None
+    hindcast_run = None
     cold_start_run = None
     verification_run = None
 
@@ -368,8 +377,23 @@ def resolve_log_context(
         if error_return:
             return None, error_return
         assert forecast_run is not None
+
         calibration_run = forecast_run.calibration_run
         cold_start_run = forecast_run.cold_start_run
+
+    elif hindcast_run_id:
+        hindcast_run, error_return = get_hindcast_run(
+            hindcast_run_id,
+            user,
+            # Allow SAVED in case we are looking for cold start logs
+            run_status=[*ACTIVE_STATUSES, StatusEnum.SAVED],
+        )
+        if error_return:
+            return None, error_return
+        assert hindcast_run is not None
+
+        calibration_run = hindcast_run.calibration_run
+        cold_start_run = hindcast_run.cold_start_run
 
     elif verification_run_id:
         verification_run, error_return = get_verification_run(
@@ -384,6 +408,7 @@ def resolve_log_context(
         calibration_run = verification_run.forecast_run.calibration_run
 
     else:
+        assert calibration_run_id is not None
         calibration_run, error_return = get_calibration_run(
             calibration_run_id,
             user,
@@ -396,6 +421,7 @@ def resolve_log_context(
         "calibration_run": calibration_run,
         "validation_run": validation_run,
         "forecast_run": forecast_run,
+        "hindcast_run": hindcast_run,
         "cold_start_run": cold_start_run,
         "verification_run": verification_run,
     }, None
@@ -406,6 +432,7 @@ def get_allowed_logs_for_request(
         calibration_run_id: int | None,
         validation_run_id: int | None,
         forecast_run_id: int | None,
+        hindcast_run_id: int | None,
         verification_run_id: int | None,
         user,
 ) -> tuple[dict[str, list[str]] | None, Response | None]:
@@ -425,6 +452,7 @@ def get_allowed_logs_for_request(
         calibration_run_id=calibration_run_id,
         validation_run_id=validation_run_id,
         forecast_run_id=forecast_run_id,
+        hindcast_run_id=hindcast_run_id,
         verification_run_id=verification_run_id,
         user=user,
     )
@@ -434,6 +462,7 @@ def get_allowed_logs_for_request(
     calibration_run = ctx["calibration_run"]
     validation_run = ctx["validation_run"]
     forecast_run = ctx["forecast_run"]
+    hindcast_run = ctx["hindcast_run"]
     cold_start_run = ctx["cold_start_run"]
     verification_run = ctx["verification_run"]
 
@@ -503,6 +532,26 @@ def get_allowed_logs_for_request(
 
             ngen_log_dir = get_cold_start_ngen_log_dir(cold_start_run)
             cold_start_logs.extend(get_log_files_in_directory(ngen_log_dir))
+            logs[LogCategory.COLD_START.value] = cold_start_logs
+
+    elif hindcast_run:
+        hindcast_logs = []
+        file = get_hindcast_ngen_stdout_file(hindcast_run)
+        if os.path.exists(file):
+            hindcast_logs.append(file)
+
+        ngen_log_dir = get_hindcast_ngen_log_dir(hindcast_run)
+        hindcast_logs.extend([str(p) for p in Path(ngen_log_dir).glob("*.log")])
+        logs[LogCategory.HINDCAST.value] = hindcast_logs
+
+        if cold_start_run:
+            cold_start_logs = []
+            file = get_cold_start_ngen_stdout_file(cold_start_run)
+            if os.path.exists(file):
+                cold_start_logs.append(file)
+
+            ngen_log_dir = get_cold_start_ngen_log_dir(cold_start_run)
+            cold_start_logs.extend([str(p) for p in Path(ngen_log_dir).glob("*.log")])
             logs[LogCategory.COLD_START.value] = cold_start_logs
 
     elif verification_run:

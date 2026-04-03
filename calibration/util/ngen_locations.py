@@ -322,12 +322,20 @@ def get_hindcast_stdout_file(hindcast_run: HindcastRun) -> str:
     return os.path.join(get_hindcast_dir(hindcast_run), f'hindcast_{hindcast_run.id}_stdout.log')
 
 
+def get_hindcast_ngen_stdout_file(hindcast_run: HindcastRun) -> str:
+    return os.path.join(get_hindcast_dir(hindcast_run), 'ngen_stdout_stderr.log')
+
+
 def get_cold_start_ngen_log_dir(cold_start_run: ColdStartRun) -> str:
     return os.path.join(get_cold_start_dir(cold_start_run), 'logs')
 
 
 def get_forecast_ngen_log_dir(forecast_run: ForecastRun) -> str:
     return os.path.join(get_forecast_dir(forecast_run), 'logs')
+
+
+def get_hindcast_ngen_log_dir(hindcast_run: HindcastRun) -> str:
+    return os.path.join(get_hindcast_dir(hindcast_run), 'logs')
 
 
 def get_cold_start_performance_file(cold_start_run: ColdStartRun) -> str:
