@@ -1,33 +1,3 @@
-import json
-import logging
-from typing import Any, Type, cast, Literal
-
-from django.db.models import Q, Exists, OuterRef, Count, Subquery, When, CharField, Value, F, Case, Sum, IntegerField, QuerySet, Min, Max
-from django.db.models.functions import Lower
-from drf_spectacular.utils import extend_schema, OpenApiResponse, PolymorphicProxySerializer
-from rest_framework.decorators import api_view
-from rest_framework.request import Request
-from rest_framework.response import Response
-
-from calibration.enums import GetValidationJobsScope, StatusEnum, ValidationType
-from calibration.enums_vanilla import CalibrationSortField, ForecastSortField, VerificationSortField
-from calibration.models import CalibrationFormulation, CalibrationRun, ValidationRun, VerificationRun, CustomUser, IterationParameter, ForecastRun, \
-    CalibrationStopCriteria
-from calibration.models.base_run import BaseRun
-from calibration.util.caching import get_cached_modules_by_id
-from calibration.util.calibration_validators import ErrorResponseSerializer, \
-    GetCalibrationJobsResponseSerializer, CalibrationPaginationSerializer, \
-    GetCalibrationJobIDsResponseSerializer, EmptySerializer, \
-    GetGagesResponseSerializer, GetGagesRequestSerializer, GetCalibrationJobsSummaryResponseSerializer, GetValidationJobsResponseSerializer, \
-    CalibrationRunSerializer, ForecastPaginationSerializer, GetForecastJobsResponseSerializer, GetVerificationJobsResponseSerializer, \
-    VerificationPaginationSerializer
-from calibration.views.calibration_download_views import downloadable_statuses
-from calibration.views.called_from import get_caller_name
-from calibration.views.common import handle_exceptions, validate_request, validate_response, truncate_large_fields, get_user_email, get_elapsed_str, \
-    readonly_transaction, get_calibration_run
-
-logger = logging.getLogger(__name__)
-
 """
 Job Retrieval Endpoints for Calibration, Forecast, and Verification
 ===================================================================
@@ -163,6 +133,36 @@ Read-only execution
     All retrieval runs inside a read-only transaction wrapper to reduce
     lock contention.
 """
+
+import json
+import logging
+from typing import Any, Type, cast, Literal
+
+from django.db.models import Q, Exists, OuterRef, Count, Subquery, When, CharField, Value, F, Case, Sum, IntegerField, QuerySet, Min, Max
+from django.db.models.functions import Lower
+from drf_spectacular.utils import extend_schema, OpenApiResponse, PolymorphicProxySerializer
+from rest_framework.decorators import api_view
+from rest_framework.request import Request
+from rest_framework.response import Response
+
+from calibration.enums import GetValidationJobsScope, StatusEnum, ValidationType
+from calibration.enums_vanilla import CalibrationSortField, ForecastSortField, VerificationSortField
+from calibration.models import CalibrationFormulation, CalibrationRun, ValidationRun, VerificationRun, CustomUser, IterationParameter, ForecastRun, \
+    CalibrationStopCriteria
+from calibration.models.base_run import BaseRun
+from calibration.util.caching import get_cached_modules_by_id
+from calibration.util.calibration_validators import ErrorResponseSerializer, \
+    GetCalibrationJobsResponseSerializer, CalibrationPaginationSerializer, \
+    GetCalibrationJobIDsResponseSerializer, EmptySerializer, \
+    GetGagesResponseSerializer, GetGagesRequestSerializer, GetCalibrationJobsSummaryResponseSerializer, GetValidationJobsResponseSerializer, \
+    CalibrationRunSerializer, ForecastPaginationSerializer, GetForecastJobsResponseSerializer, GetVerificationJobsResponseSerializer, \
+    VerificationPaginationSerializer
+from calibration.views.calibration_download_views import downloadable_statuses
+from calibration.views.called_from import get_caller_name
+from calibration.views.common import handle_exceptions, validate_request, validate_response, truncate_large_fields, get_user_email, get_elapsed_str, \
+    readonly_transaction, get_calibration_run
+
+logger = logging.getLogger(__name__)
 
 
 @extend_schema(
