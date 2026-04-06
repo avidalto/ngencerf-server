@@ -139,13 +139,18 @@ def get_geopackage_from_data_services(run: CalibrationRun):
         logger.info('Retrieving geopackage from Data Services')
         geopackage_dir = get_geopackage_dir_for_job(run)
         os.makedirs(geopackage_dir, exist_ok=True)
-        call_icefabric_gpkg(
+
+        args = [
             run.gage.gage_id,
+            'gage',
             run.gage.domain.name,
             geopackage_dir,
             settings.ENTERPRISE_DATA_ENV,
-            settings.HYDROFABRIC_SOURCE
-        )
+            settings.HYDROFABRIC_SOURCE,
+        ]
+
+        logger.info(f'Calling call_icefabric_gpkg with arguments: {args}')
+        call_icefabric_gpkg(*args)
 
 
 def _parse_utc(dt_str: str) -> datetime:
