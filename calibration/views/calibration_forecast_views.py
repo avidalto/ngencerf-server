@@ -295,7 +295,7 @@ def get_forecast_timeseries_data(request: Request) -> Response:
     assert run is not None
 
     # Read the output data from forecast (and possibly cold start)
-    forecast_output = get_forecast_output_file(run)
+    forecast_output = get_forecast_output_file_path(run)
     if not os.path.exists(forecast_output):
         raise FileNotFoundError(f"File not found: {forecast_output}")
 

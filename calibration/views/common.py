@@ -669,18 +669,25 @@ def create_hindcast_run_internal(
     return hindcast_run
 
 
-def create_verification_run_internal(forecast_run: ForecastRun) -> VerificationRun:
+def create_verification_run_internal(run: ForecastRun | HindcastRun) -> VerificationRun:
     """
-    Create a new VerificationRun for the given user.
+    Create a new VerificationRun for the given ForecastRun or HindcastRun.
 
     - Calls create_verification_input(verification_run) to generate the config
 
-    :param forecast_run Forecast Job to associate with this verification run
+    :param run: Forecast or Hindcast job to associate with this verification run
     :return: New VerificationRun instance.
     """
-    verification_run = VerificationRun.objects.create(
-        status=StatusEnum.SAVED.db_instance,
-        forecast_run=forecast_run)
+    if isinstance(run, ForecastRun):
+        verification_run = VerificationRun.objects.create(
+            status=StatusEnum.SAVED.db_instance,
+            forecast_run=run,
+        )
+    else:
+        verification_run = VerificationRun.objects.create(
+            status=StatusEnum.SAVED.db_instance,
+            hindcast_run=run,
+        )
 
     os.makedirs(get_verification_run_dir(verification_run))
     logger.info(f"Creating {get_job_description(verification_run)}")

@@ -14,6 +14,7 @@ from rest_framework.response import Response
 
 from calibration.enums import StatusEnum
 from calibration.enums_vanilla import JobType
+from calibration.models import ForecastRun
 from calibration.run_util.run_common import submit_job
 from calibration.util.calibration_validators import ErrorResponseSerializer, \
     CreateAndRunVerificationRequestSerializer, CreateAndRunVerificationResponseSerializer, \
@@ -23,7 +24,7 @@ from calibration.util.ngen_locations import get_verification_run_dir, get_verifi
 from calibration.views.called_from import get_caller_name
 from calibration.views.common import handle_exceptions, validate_response, validate_request, \
     get_forecast_run, get_verification_run, ResponseError, get_user_email, get_elapsed_str, \
-    create_verification_run_internal, png_to_base64_url, truncate_large_fields, get_job_description
+    create_verification_run_internal, png_to_base64_url, truncate_large_fields, get_job_description, get_hindcast_run
 
 logger = logging.getLogger(__name__)
 
@@ -63,13 +64,21 @@ def create_and_run_verification_job(request: Request) -> Response:
         return error_return
 
     forecast_run_id = validator.get('forecast_run_id')
+    hindcast_run_id = validator.get('hindcast_run_id')
     logging_config = validator.get('logging_config')
 
-    forecast_run, error_return = get_forecast_run(forecast_run_id, request.user, run_status=[StatusEnum.DONE])
-    if error_return:
-        return error_return
+    if forecast_run_id:
+        run, error_return = get_forecast_run(forecast_run_id, request.user, run_status=[StatusEnum.DONE])
+        if error_return:
+            return error_return
+    else:
+        run, error_return = get_hindcast_run(hindcast_run_id, request.user, run_status=[StatusEnum.DONE])
+        if error_return:
+            return error_return
 
-    verification_run = create_verification_run_internal(forecast_run)
+    assert run is not None
+
+    verification_run = create_verification_run_internal(run)
 
     error_response = submit_job(verification_run, logging_config=logging_config)
     if error_response:
@@ -78,19 +87,28 @@ def create_and_run_verification_job(request: Request) -> Response:
     msg = get_job_description(verification_run) + ' created and submitted'
     response = {
         'message': msg,
-        'calibration_run_id': forecast_run.calibration_run.id,
-        'forecast_run_id': forecast_run.id,
+        'calibration_run_id': run.calibration_run.id,
         'verification_run_id': verification_run.id,
         'submit_date': verification_run.submit_date,
         'status': verification_run.status.name
     }
 
-    response_validator, error_response = validate_response(CreateAndRunVerificationResponseSerializer, response)
+    if isinstance(run, ForecastRun):
+        response['forecast_run_id'] = run.id
+    else:
+        response['hindcast_run_id'] = run.id
+
+    response_validator, error_response = validate_response(
+        CreateAndRunVerificationResponseSerializer,
+        response
+    )
     if error_response:
         return error_response
 
     logger.debug(
-        f'Returning to {get_user_email(request)} from {get_caller_name()}(){get_elapsed_str(request)} - {json.dumps(response_validator.data)}')
+        f'Returning to {get_user_email(request)} from {get_caller_name()}(){get_elapsed_str(request)} - '
+        f'{json.dumps(response_validator.data)}'
+    )
     return Response(response_validator.data, status=status.HTTP_201_CREATED)
 
 
@@ -132,6 +150,7 @@ def get_verification_plot_names(request: Request) -> Response:
                                                          StatusEnum.SERVER_ERROR])
     if error_return:
         return error_return
+    assert run is not None
 
     plot_names = []
 
@@ -221,6 +240,7 @@ def get_verification_plot(request: Request) -> Response:
     run, error_return = get_verification_run(verification_run_id, request.user, run_status=[StatusEnum.RUNNING, StatusEnum.DONE])
     if error_return:
         return error_return
+    assert run is not None
 
     # Just retrieve the file for now
     plot_file_path = os.path.join(get_verification_run_dir(run), plot_name)
@@ -293,6 +313,7 @@ def delete_verification_job(request: Request) -> Response:
     run, error_return = get_verification_run(verification_run_id, request.user, run_status=list(StatusEnum))
     if error_return:
         return error_return
+    assert run is not None
 
     if run.status in [StatusEnum.RUNNING.db_instance, StatusEnum.SUBMITTED.db_instance]:
         return ResponseError(f'Verification Job {run.id} is running.  Cannot delete a running job')

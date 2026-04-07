@@ -6,8 +6,8 @@ import yaml
 
 from calibration.models import VerificationRun
 from calibration.util.caching import generate_forecast_config_yaml
-from calibration.util.ngen_locations import get_verification_run_dir, VERF_CROSSWALK_NGEN_FILE, get_forecast_output_file, \
-    get_verification_yaml_config_file
+from calibration.util.ngen_locations import get_verification_run_dir, VERF_CROSSWALK_NGEN_FILE, get_forecast_output_file_path, \
+    get_verification_yaml_config_file, get_forecast_output_file_name, get_forecast_output_dir, get_hindcast_output_file_path, get_hindcast_output_dir
 from calibration.views.called_from import called_from
 from calibration.views.common import format_datetime
 
@@ -34,6 +34,8 @@ CONFIG_TEMPLATE = {
         "forecast_start_date": [],
         "forecast_end_date": []
     },
+
+    "file_paths": {},
 
     "nwm_forecast": {
         "data_source": ""
@@ -84,33 +86,42 @@ def create_verification_input(run: VerificationRun) -> str:
     """
     logger.info(called_from())
 
-    # error_object = ErrorReport()
+    is_hindcast = run.hindcast_run is not None
+
     config = copy.deepcopy(CONFIG_TEMPLATE)
 
     # Add hard-coded file paths to YAML
-    config['file_paths'] = {
-        'base_dir': get_verification_run_dir(run),
-        'fcst_config_file': generate_forecast_config_yaml(),
-        'output_dir': get_verification_run_dir(run),
-    }
-
-    general = config['general']
     file_paths: dict[str, Any] = config['file_paths']
+    file_paths['base_dir'] = get_verification_run_dir(run)
+    file_paths['crosswalk_file'] = {'ngen': VERF_CROSSWALK_NGEN_FILE}
+    file_paths['fcst_config_file'] = generate_forecast_config_yaml()
+    if is_hindcast:
+        file_paths['fcst_data_dir'] = get_hindcast_output_file_path(run.hindcast_run)
+        file_paths['fcst_data_file'] = get_hindcast_output_dir(run.hindcast_run)
+    else:
+        file_paths['fcst_data_file'] = {
+            run.forecast_run.calibration_run.job_name: get_forecast_output_file_path(run.forecast_run)
+        }
+    file_paths['output_dir'] = get_verification_run_dir(run)
+
+    general: dict[str, Any] = config['general']
 
     # Override values in YAML with info from our forecast/calibration runs
     general['location_set_name'] = 'usgs_' + run.forecast_run.calibration_run.gage.gage_id
     general['location_list'] = [run.forecast_run.calibration_run.gage.gage_id]
-    general['location_type'] = 'usgs_gage'
     general['nwm_configuration'] = run.forecast_run.configuration.internal_name
     general['dataset_name'] = [run.forecast_run.calibration_run.job_name]
     general['nwm_version'] = ['ngen']
     general['forecast_start_date'] = [format_datetime(run.forecast_run.cycle_date)]
     general['forecast_end_date'] = [format_datetime(run.forecast_run.cycle_date)]
-    config['nwm_forecast']['data_source'] = 'ngenCERF'
-    file_paths['crosswalk_file'] = {'ngen': VERF_CROSSWALK_NGEN_FILE}
-    file_paths['fcst_data_file'] = {
-        run.forecast_run.calibration_run.job_name: get_forecast_output_file(run.forecast_run)
-    }
+
+    nwm_forecast: dict[str, Any] = config['nwm_forecast']
+    nwm_forecast['data_source'] = 'hindcast' if is_hindcast else 'ngenCERF'
+
+    plots: dict[str, Any] = config['plots']
+    if is_hindcast:
+        # Additional information needed for hindcast
+        pass
 
     # -----------------------------
     # FILE WRITE PHASE
@@ -118,7 +129,12 @@ def create_verification_input(run: VerificationRun) -> str:
     config_location = get_verification_yaml_config_file(run)
 
     with open(config_location, 'w', encoding='utf-8') as config_file:
-        yaml.dump(config, config_file, default_flow_style=False)
+        yaml.safe_dump(
+            config,
+            config_file,
+            default_flow_style=False,
+            sort_keys=False
+        )
         logger.info(f"Writing new YAML file to {config_location}")
 
     return config_location

@@ -6,26 +6,27 @@ general:
     pair_data: true
     compute_metrics: true
     plot_metrics: true
-  location_set_name: usgs_01123000  # user-specified name for the set of locations
+  location_set_name: 'usgs_01123000'  # user-specified name for the set of locations
   location_list: ['01123000'] # list of usgs gage IDs
   location_type: usgs_gage # location type
   variable_name: streamflow # currently only 'streamflow' is supported
-  nwm_configuration: short_range_hawaii  # must match one of the configurations defined in fcst_config_file
-  dataset_name: [noah_cfes] # user-specified name of datasets (e.g., formualtion name
-  nwm_version: [ngen] # list of NWM versions; must have the same length as 'dataset_name'
-  forecast_start_date: ['2022-12-01 00:00:00'] # list of start dates for verification; must be same length as 'dataset_name'
-  forecast_end_date: ['2022-12-01 00:00:00'] # list of end dates for verification; must be same length as 'dataset_name'
+  nwm_configuration: short_range  # must match one of the configurations defined in fcst_config_file
+  dataset_name: [noah_cfes, noah_sac] # user-specified name of datasets (e.g., formualtion name)
+  nwm_version: [ngen, ngen] # list of NWM versions; must have the same length as 'dataset_name'
+  forecast_start_date: ['2025-08-20 00:00:00', '2025-08-20 00:00:00'] # list of start dates for verification; must be same length as 'dataset_name'
+  forecast_end_date: ['2025-08-22 06:00:00', '2025-08-22 06:00:00'] # list of end dates for verification; must be same length as 'dataset_name'
 
 #### configurations for various file paths
 file_paths:
   base_dir: ~/repos/nwm-verf/data/ # root directory to store data/outputs for verification
   crosswalk_file: '{base_dir}/inputs/gage_files/usgs_{nwm_version}_crosswalk_all_domains.parquet' # crosswalk file mapping gage IDs to NWM/ngen link IDs
   fcst_config_file: '{base_dir}/inputs/nwm_forecast_configuration.yaml' # NWM forecast configuration file
-  fcst_data_file: '{base_dir}/inputs/{location_set_name}/{dataset_name}/{nwm_configuration}.csv' # forecast data directory (must be specified when nwm_forecast.data_source is set to ngenCERF)
-  output_dir: '{base_dir}/outputs/{location_set_name}' # output directory to store all datasets, metrics and plots
+  fcst_data_dir: '{base_dir}/inputs/{location_set_name}/{dataset_name}/hind_run1' # forecast data directory or file (must be specified when nwm_forecast.data_source is set to ngenCERF or hinscast)
+  fcst_data_file: '01123000_output.csv' # forecast data file path pattern (must be specified when nwm_forecast.data_source is set to ngenCERF or hinscast)
+  output_dir: '{base_dir}/outputs/{location_set_name}_hindcast' # output directory to store all datasets, metrics and plots
 
 nwm_forecast:
-  data_source: ngenCERF    # Specifies the source to retrieve the model forecast or simulation data. Currently supported options: GCS, ngenCERF, ngenSIM
+  data_source: hindcast    # Specifies the source to retrieve the model forecast or simulation data. Currently supported options: GCS, ngenCERF, ngenSIM, hindcast
 
 flow_observation:
   usgs: # flow obs retrieved will be stored at [data_dir_root]/[location_set_name]/usgs
@@ -43,13 +44,18 @@ metrics:
   metric_subset: 'all'
   flow_threshold_categorical: 0.9 # non-exceedance probability threshold of streamflow to be used for categorical metrics in nwm.eval
   flow_threshold_event: 0.9 # non-exceedance probability threshold of streamflow to be used for event-based metrics in nwm.eval
-  lead_times: ['all_aggregated'] # list of lead times (in hours) for which metrics should be calculated for
+  lead_times: [all, 1-5, 6-10, 11-18, all_aggregated] # list of lead times (in hours) for which metrics should be calculated for
   file_format: parquet # file format for metrics. Options are: parquet, csv. Default is parquet.
 
 plots:
   time_series:
     plot: true  # whether to create time series plots
+    lead_times: [1, 6, 12, 18] # list of lead times (in hours) for which time series plots should be created
+    reference_times: ['2025-08-20 00:00:00', '2025-08-21 00:00:00', '2025-08-22 00:00:00'] # list of forecast reference times for which time series plots should be created
   metric_table:
     plot: true  # whether to create metric table plots
+    lead_times: [1, 10, 1-5, all_aggregated] # list of lead times (in hours) for which metric table plots should be created
   barchart:
     plot: true  # whether to create barchart plots
+    metric_subset: [KGE, NSE, CORR, NNSE]
+    lead_times: [1, 5, 10, 18, 1-5, 6-10, 11-18, "all_aggregated"] # list of lead times (in hours) for which barchart plots should be created

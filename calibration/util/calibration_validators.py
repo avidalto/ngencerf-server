@@ -195,7 +195,7 @@ class ValidationRunIdSerializer(BaseSerializer):
     validation_run_id = serializers.IntegerField(required=True, min_value=1)
 
 
-class CalibrationOrValidationRunSerializer(BaseSerializer):
+class CalibrationOrValidationRunIdSerializer(BaseSerializer):
     calibration_run_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     validation_run_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
 
@@ -960,7 +960,7 @@ class PlotListStaticSerializer(BaseSerializer):
     timeseries_available = serializers.BooleanField(required=True, allow_null=False)
 
 
-class GetPlotNamesResponseSerializer(CalibrationOrValidationRunSerializer):
+class GetPlotNamesResponseSerializer(CalibrationOrValidationRunIdSerializer):
     plot_names = PlotListStaticSerializer(many=True)
     status = serializers.CharField(required=True, validators=[enum_validator(StatusEnum, allow_blank=False)])
 
@@ -969,7 +969,7 @@ class GetPlotNamesForComparisonResponseSerializer(BaseSerializer):
     plot_names = PlotListStaticSerializer(many=True)
 
 
-class GetPlotRequestSerializer(CalibrationOrValidationRunSerializer):
+class GetPlotRequestSerializer(CalibrationOrValidationRunIdSerializer):
     plot_name = serializers.CharField(required=True, allow_null=False, validators=[enum_validator(PlotDefinitionsEnum)])
     include_data = serializers.BooleanField(required=False, default=False)
     force_include_plot = serializers.BooleanField(required=False, default=False)
@@ -1561,11 +1561,11 @@ class GetColdStartJobsForConfigurationResponseSerializer(BaseSerializer):
 ##################################
 
 
-class CreateAndRunVerificationRequestSerializer(ForecastRunIdSerializer):
+class CreateAndRunVerificationRequestSerializer(ForecastOrHindcastRunIdSerializer):
     logging_config = LoggingConfigSerializer(required=False)
 
 
-class CreateAndRunVerificationResponseSerializer(GenericMessageWithIdResponseSerializer, ForecastRunIdSerializer, VerificationRunIdSerializer):
+class CreateAndRunVerificationResponseSerializer(GenericMessageWithIdResponseSerializer, ForecastOrHindcastRunIdSerializer, VerificationRunIdSerializer):
     status = serializers.CharField(validators=[enum_validator(StatusEnum, allow_blank=False)], required=True)
     submit_date = serializers.DateTimeField(required=True, allow_null=False)
 
