@@ -145,9 +145,13 @@ def get_verification_plot_names(request: Request) -> Response:
 
     verification_run_id = validator.get('verification_run_id')
 
-    run, error_return = get_verification_run(verification_run_id, request.user,
-                                             run_status=[StatusEnum.RUNNING, StatusEnum.DONE, StatusEnum.CANCELLED, StatusEnum.FAILED,
-                                                         StatusEnum.SERVER_ERROR])
+    run, error_return = get_verification_run(
+        verification_run_id, request.user,
+        run_status=[
+            StatusEnum.RUNNING, StatusEnum.DONE, StatusEnum.CANCELLED,
+            StatusEnum.FAILED, StatusEnum.SERVER_ERROR
+        ]
+    )
     if error_return:
         return error_return
     assert run is not None
@@ -253,7 +257,8 @@ def get_verification_plot(request: Request) -> Response:
         cache.set(cache_key_plot_url, plot_url, timeout=3600)
     else:
         return ResponseError(
-            f"Error while checking existence of plot '{plot_name}' for {JobType.VERIFICATION.value.capitalize()} {run.id}: File Not Found")
+            f"Plot '{plot_name}' for {JobType.VERIFICATION.value.capitalize()} {run.id}: File Not Found"
+        )
 
     response = {
         'plot_name': plot_name,

@@ -990,7 +990,7 @@ def get_job_description(run: BaseRun) -> str:
     """
     Get a descriptive string identifying the job type and owner.
 
-    :param run: Job instance (CalibrationRun, ValidationRun, ForecastRun, VerificationRun).
+    :param run: Job instance (CalibrationRun, ValidationRun, ForecastRun, HindcastRun, ColdStartRun, VerificationRun).
     :return: Description of the job.
     """
     if isinstance(run, CalibrationRun):
@@ -1006,7 +1006,13 @@ def get_job_description(run: BaseRun) -> str:
     elif isinstance(run, ColdStartRun):
         return f"Cold Start Job {run.id} for Calibration Job {run.calibration_run.id}, user: {run.calibration_run.owner.username}"
     elif isinstance(run, VerificationRun):
-        return f"Verification Job {run.id} for Forecast Job {run.forecast_run.id} for Calibration Job {run.forecast_run.calibration_run.id}, user: {run.forecast_run.calibration_run.owner.username}"
+        parent_run = run.parent_run
+        parent_job_type = 'Forecast' if run.forecast_run_id is not None else 'Hindcast'
+        return (
+            f"Verification Job {run.id} for {parent_job_type} Job {parent_run.id} "
+            f"for Calibration Job {parent_run.calibration_run.id}, "
+            f"user: {parent_run.calibration_run.owner.username}"
+        )
 
     raise ValueError(f"Unknown job type: {type(run).__name__}")
 

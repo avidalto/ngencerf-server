@@ -26,7 +26,7 @@ from calibration.util.calibration_validators import CalibrationRunIdSerializer, 
     ErrorResponseSerializer, ReportIterationSerializer, SubmitCalibrationJobResponseSerializer, GetIterationsResponseSerializer, \
     CalibrationJobSlurmCallbackRequestSerializer, ValidationJobSlurmCallbackRequestSerializer, EmptySerializer, \
     GetStatusForCalibrationResponseSerializer, GetStatusForComparisonRequestSerializer, GetStatusForComparisonResponseSerializer, \
-    CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSerializer, ForecastJobSlurmCallbackRequestSerializer, \
+    CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunIdSerializer, ForecastJobSlurmCallbackRequestSerializer, \
     CancelJobResponseSerializer, \
     ValidationRunIdSerializer, GenericResponseSerializerWithValidator, RunCalibrationJob, ColdStartJobSlurmCallbackRequestSerializer, \
     VerificationJobSlurmCallbackRequestSerializer, GetStatusForValidationResponseSerializer, \
@@ -1114,7 +1114,7 @@ def get_iteration(request: Request) -> Response:
 
 
 @extend_schema(
-    request=CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSerializer,
+    request=CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunIdSerializer,
     responses={
         200: GenericResponseSerializer,
         400: OpenApiResponse(
@@ -1145,7 +1145,7 @@ def cancel_job(request: Request) -> Response:
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
     validator, error_return = validate_request(
-        CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSerializer,
+        CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunIdSerializer,
         data
     )
     if error_return:

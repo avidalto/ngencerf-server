@@ -384,7 +384,12 @@ def get_cold_start_realization_file(cold_start_run: ColdStartRun) -> str:
 
 
 def get_verification_run_dir(run: VerificationRun) -> str:
-    return os.path.join(get_forecast_dir(run.forecast_run), 'Verification_Run', f'verification_{run.id}')
+    if run.forecast_run_id is not None:
+        base_dir = get_forecast_dir(run.forecast_run)
+    else:
+        base_dir = get_hindcast_dir(run.hindcast_run)
+
+    return os.path.join(base_dir, 'Verification_Run', f'verification_{run.id}')
 
 
 def get_verification_yaml_config_file(run: VerificationRun) -> str:

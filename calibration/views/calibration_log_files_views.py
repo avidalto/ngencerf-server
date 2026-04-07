@@ -8,8 +8,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from calibration.enums import StatusEnum, LogCategory, ValidationType
-from calibration.models import CalibrationRun
-from calibration.util.calibration_validators import CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSerializer, \
+from calibration.models import CalibrationRun, ValidationRun
+from calibration.util.calibration_validators import CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunIdSerializer, \
     GetLogNamesResponseSerializer, ErrorResponseSerializer, GetLogRequestSerializer, GetLogsResponseSerializer, GetLogStatusRequestSerializer, \
     GetLogStatusResponseSerializer
 from calibration.util.ngen_locations import get_validation_control_stdout_file, get_validation_best_stdout_file, get_validation_iteration_stdout_file, \
@@ -24,7 +24,7 @@ from calibration.views.common import get_validation_run, get_forecast_run, get_v
 
 
 @extend_schema(
-    request=CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSerializer,
+    request=CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunIdSerializer,
     responses={
         200: GetLogNamesResponseSerializer,
         400: OpenApiResponse(
@@ -55,7 +55,7 @@ def get_log_names(request: Request) -> Response:
     data = request.data if request.method == 'POST' else request.query_params.dict()
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
 
-    validator, error_return = validate_request(CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSerializer, data)
+    validator, error_return = validate_request(CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunIdSerializer, data)
     if error_return:
         return error_return
 

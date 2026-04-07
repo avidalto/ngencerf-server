@@ -7,7 +7,8 @@ import yaml
 from calibration.models import VerificationRun
 from calibration.util.caching import generate_forecast_config_yaml
 from calibration.util.ngen_locations import get_verification_run_dir, VERF_CROSSWALK_NGEN_FILE, get_forecast_output_file_path, \
-    get_verification_yaml_config_file, get_forecast_output_file_name, get_forecast_output_dir, get_hindcast_output_file_path, get_hindcast_output_dir
+    get_verification_yaml_config_file, get_hindcast_output_dir, \
+    get_hindcast_output_file_name
 from calibration.views.called_from import called_from
 from calibration.views.common import format_datetime
 
@@ -86,7 +87,10 @@ def create_verification_input(run: VerificationRun) -> str:
     """
     logger.info(called_from())
 
-    is_hindcast = run.hindcast_run is not None
+    is_hindcast = run.hindcast_run_id is not None
+    parent_run = run.parent_run
+    calibration_run = parent_run.calibration_run
+    configuration_internal_name = parent_run.configuration.internal_name
 
     config = copy.deepcopy(CONFIG_TEMPLATE)
 
@@ -95,25 +99,29 @@ def create_verification_input(run: VerificationRun) -> str:
     file_paths['base_dir'] = get_verification_run_dir(run)
     file_paths['crosswalk_file'] = {'ngen': VERF_CROSSWALK_NGEN_FILE}
     file_paths['fcst_config_file'] = generate_forecast_config_yaml()
+
     if is_hindcast:
-        file_paths['fcst_data_dir'] = get_hindcast_output_file_path(run.hindcast_run)
-        file_paths['fcst_data_file'] = get_hindcast_output_dir(run.hindcast_run)
+        file_paths['fcst_data_dir'] = {
+            calibration_run.job_name: get_hindcast_output_dir(run.hindcast_run)
+        }
+        file_paths['fcst_data_file'] = get_hindcast_output_file_name(run.hindcast_run)
     else:
         file_paths['fcst_data_file'] = {
-            run.forecast_run.calibration_run.job_name: get_forecast_output_file_path(run.forecast_run)
+            calibration_run.job_name: get_forecast_output_file_path(run.forecast_run)
         }
+
     file_paths['output_dir'] = get_verification_run_dir(run)
 
     general: dict[str, Any] = config['general']
 
-    # Override values in YAML with info from our forecast/calibration runs
-    general['location_set_name'] = 'usgs_' + run.forecast_run.calibration_run.gage.gage_id
-    general['location_list'] = [run.forecast_run.calibration_run.gage.gage_id]
-    general['nwm_configuration'] = run.forecast_run.configuration.internal_name
-    general['dataset_name'] = [run.forecast_run.calibration_run.job_name]
+    # Override values in YAML with info from our parent run / calibration run
+    general['location_set_name'] = 'usgs_' + calibration_run.gage.gage_id
+    general['location_list'] = [calibration_run.gage.gage_id]
+    general['nwm_configuration'] = configuration_internal_name
+    general['dataset_name'] = [calibration_run.job_name]
     general['nwm_version'] = ['ngen']
-    general['forecast_start_date'] = [format_datetime(run.forecast_run.cycle_date)]
-    general['forecast_end_date'] = [format_datetime(run.forecast_run.cycle_date)]
+    general['forecast_start_date'] = [format_datetime(parent_run.cycle_date)]
+    general['forecast_end_date'] = [format_datetime(parent_run.cycle_date)]
 
     nwm_forecast: dict[str, Any] = config['nwm_forecast']
     nwm_forecast['data_source'] = 'hindcast' if is_hindcast else 'ngenCERF'

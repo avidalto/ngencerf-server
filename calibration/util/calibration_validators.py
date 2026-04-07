@@ -229,7 +229,7 @@ class ForecastOrHindcastSerializer(BaseSerializer):
         return data
 
 
-class CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSerializer(BaseSerializer):
+class CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunIdSerializer(BaseSerializer):
     calibration_run_id = serializers.IntegerField(required=False, allow_null=False, min_value=1)
     validation_run_id = serializers.IntegerField(required=False, allow_null=False, min_value=1)
     forecast_run_id = serializers.IntegerField(required=False, allow_null=False, min_value=1)
@@ -273,12 +273,12 @@ class CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSer
         return data
 
 
-class GetStatusRequestSerializer(CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSerializer):
+class GetStatusRequestSerializer(CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunIdSerializer):
     include_performance_metrics = serializers.BooleanField(required=False, default=False)
 
 
 class CancelJobResponseSerializer(GenericMessageAndStatusResponseSerializer,
-                                  CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSerializer):
+                                  CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunIdSerializer):
     def validate(self, data):
         # Call the parent validate method to include its logic
         return super().validate(data)
@@ -1773,13 +1773,13 @@ class GetValidationJobsResponseSerializer(BaseSerializer):
     validation_jobs = ValidationJobsResponseSerializer(many=True, required=True)
 
 
-class GetLogRequestSerializer(CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSerializer):
+class GetLogRequestSerializer(CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunIdSerializer):
     log_name = serializers.CharField(required=True, allow_blank=False)
     start = serializers.IntegerField(required=False, default=0, min_value=-1)
     limit = serializers.IntegerField(required=False, default=100, min_value=1)
 
 
-class GetLogStatusRequestSerializer(CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSerializer):
+class GetLogStatusRequestSerializer(CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunIdSerializer):
     log_name = serializers.CharField(required=True)
     byte_offset = serializers.IntegerField(required=True, min_value=0)
 
