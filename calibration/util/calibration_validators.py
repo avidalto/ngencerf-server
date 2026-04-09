@@ -1000,7 +1000,7 @@ class GetPlotResponseSerializer(CalibrationRunIdSerializer):
     pagination_metadata = PaginationMetadataSerializer(required=False)
 
 
-class ForecastRunDataResponseSerializer(ForecastOrHindcastSerializer):
+class ForecastRunDataResponseSerializer(ForecastOrHindcastRunIdSerializer):
     timeseries_data = serializers.JSONField(required=True)
 
 

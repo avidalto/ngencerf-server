@@ -7,8 +7,7 @@ import yaml
 from calibration.models import VerificationRun
 from calibration.util.caching import generate_forecast_config_yaml
 from calibration.util.ngen_locations import get_verification_run_dir, VERF_CROSSWALK_NGEN_FILE, get_forecast_output_file_path, \
-    get_verification_yaml_config_file, get_hindcast_output_dir, \
-    get_hindcast_output_file_name
+    get_verification_yaml_config_file, get_hindcast_output_file_name, get_hindcast_dir
 from calibration.views.called_from import called_from
 from calibration.views.common import format_datetime
 
@@ -102,7 +101,7 @@ def create_verification_input(run: VerificationRun) -> str:
 
     if is_hindcast:
         file_paths['fcst_data_dir'] = {
-            calibration_run.job_name: get_hindcast_output_dir(run.hindcast_run)
+            calibration_run.job_name: get_hindcast_dir(run.hindcast_run)
         }
         file_paths['fcst_data_file'] = get_hindcast_output_file_name(run.hindcast_run)
     else:
@@ -126,10 +125,16 @@ def create_verification_input(run: VerificationRun) -> str:
     nwm_forecast: dict[str, Any] = config['nwm_forecast']
     nwm_forecast['data_source'] = 'hindcast' if is_hindcast else 'ngenCERF'
 
+    metrics: dict[str, Any] = config['metrics']
+    metrics['lead_times'] = ['all', '1-5', '6-10', '11-18', 'all_aggregated'] if is_hindcast else ['all_aggregated']
+
     plots: dict[str, Any] = config['plots']
     if is_hindcast:
-        # Additional information needed for hindcast
-        pass
+        plots['time_series']['lead_times'] = [1, 6, 12, 18]
+        # plots['time_series']['reference_times'] = ['2025-08-20 00:00:00', '2025-08-21 00:00:00', '2025-08-22 00:00:00']
+        plots['metric_table']['lead_times'] = [1, 10, '1-5', 'all_aggregated']
+        plots['barchart']['lead_times'] = [1, 5, 10, 18, '1-5', '6-10', '11-18', 'all_aggregated']
+        plots['barchart']['metric_subset'] = ['KGE', 'NSE', 'CORR', 'NNSE']
 
     # -----------------------------
     # FILE WRITE PHASE

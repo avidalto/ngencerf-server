@@ -3,7 +3,6 @@ import logging
 import os
 import shutil
 
-import yaml
 from django.core.cache import cache
 from django.db import transaction
 from drf_spectacular.utils import extend_schema, OpenApiResponse
@@ -20,7 +19,7 @@ from calibration.util.calibration_validators import ErrorResponseSerializer, \
     CreateAndRunVerificationRequestSerializer, CreateAndRunVerificationResponseSerializer, \
     GetVerificationPlotNamesResponseSerializer, GetVerificationPlotRequestSerializer, \
     GetVerificationPlotResponseSerializer, DeleteVerificationJobResponseSerializer, VerificationRunIdSerializer
-from calibration.util.ngen_locations import get_verification_run_dir, get_verification_yaml_config_file
+from calibration.util.ngen_locations import get_verification_run_dir
 from calibration.views.called_from import get_caller_name
 from calibration.views.common import handle_exceptions, validate_response, validate_request, \
     get_forecast_run, get_verification_run, ResponseError, get_user_email, get_elapsed_str, \
@@ -146,7 +145,8 @@ def get_verification_plot_names(request: Request) -> Response:
     verification_run_id = validator.get('verification_run_id')
 
     run, error_return = get_verification_run(
-        verification_run_id, request.user,
+        verification_run_id,
+        request.user,
         run_status=[
             StatusEnum.RUNNING, StatusEnum.DONE, StatusEnum.CANCELLED,
             StatusEnum.FAILED, StatusEnum.SERVER_ERROR
@@ -158,23 +158,24 @@ def get_verification_plot_names(request: Request) -> Response:
 
     plot_names = []
 
-    # For now, get verification plots directly from the file system
-    try:
-        with open(get_verification_yaml_config_file(run), 'r') as file:
-            yaml_config_data = yaml.safe_load(file)
-            if 'general' in yaml_config_data and 'nwm_configuration' in yaml_config_data['general']:
-                verification_plot_location = os.path.join(get_verification_run_dir(run), 'plots', yaml_config_data['general']['nwm_configuration'])
-                for root, dirs, files in os.walk(verification_plot_location):
-                    if files:
-                        for file_name in files:
-                            plot_names.append({
-                                'name': os.path.relpath(os.path.join(root, file_name), get_verification_run_dir(run)),
-                                'display_name': file_name,
-                                'description': f'Placeholder description of {file_name}',
-                                'timeseries_available': False
-                            })
-    except Exception as e:
-        logger.warning(f"Unable to get plots for {get_job_description(run)} due to error: {e}")
+    config_name = run.parent_run.configuration.internal_name
+
+    base_dir = get_verification_run_dir(run)
+    verification_plot_location = os.path.join(base_dir, 'plots', config_name)
+
+    for root, _, files in os.walk(verification_plot_location):
+        for file_name in files:
+            if not file_name.lower().endswith('.png'):
+                continue
+
+            full_path = os.path.join(root, file_name)
+
+            plot_names.append({
+                'name': os.path.relpath(full_path, base_dir),
+                'display_name': file_name,
+                'description': f'Placeholder description of {file_name}',
+                'timeseries_available': False
+            })
 
     response = {
         "verification_run_id": run.id,
@@ -185,12 +186,16 @@ def get_verification_plot_names(request: Request) -> Response:
     response_validator, error_response = validate_response(
         GetVerificationPlotNamesResponseSerializer,
         response,
-        fields_to_truncate=['plot_names'], max_length=3
-
+        fields_to_truncate=['plot_names'],
+        max_length=3
     )
     if error_response:
         return error_response
-    logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {json.dumps(response_validator.data)}')
+
+    logger.debug(
+        f'{get_caller_name()}() request from {get_user_email(request)} - '
+        f'{json.dumps(response_validator.data)}'
+    )
     logger.debug(
         f'Returning to {get_user_email(request)} from {get_caller_name()}(){get_elapsed_str(request)} - '
         f'{json.dumps(truncate_large_fields(response_validator.data, fields_to_truncate=["plot_names"], max_length=3))}'

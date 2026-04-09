@@ -14,7 +14,7 @@ from typing import Any, Callable, TypeVar, cast
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction, connection
-from django.db.models import QuerySet
+from django.db.models import QuerySet, Q
 from django.http import JsonResponse
 from rest_framework import status
 from rest_framework.decorators import permission_classes
@@ -49,10 +49,22 @@ def validate_run_instance(
         run: BaseRun,
         run_id: int,
         run_status: Sequence[StatusEnum] | None,
-        is_archived_field: str,
+        is_archived_fields: Sequence[str],
         include_archived: bool,
         model_name: str,
 ) -> Response | None:
+    """
+    Validate a run instance for archived state and allowed status.
+
+    :param run: The run instance to validate.
+    :param run_id: The ID of the run.
+    :param run_status: Allowed statuses for the run. Defaults to READY and SAVED if None.
+    :param is_archived_fields: One or more attribute paths used to determine whether the
+                               associated calibration job is archived.
+    :param include_archived: Whether archived jobs are allowed.
+    :param model_name: Human-readable job type name for error messages.
+    :return: A ResponseError if validation fails, otherwise None.
+    """
     effective_run_status: Sequence[StatusEnum]
     if run_status is None:
         effective_run_status = [StatusEnum.READY, StatusEnum.SAVED]
@@ -61,7 +73,13 @@ def validate_run_instance(
 
     allowed_statuses = [s.db_instance for s in effective_run_status]
 
-    is_archived = getattr(run, is_archived_field, False)
+    # Some run types do not reach the archive flag through a single fixed parent.
+    # For example, VerificationRun may need to follow either
+    # `forecast_run__calibration_run__is_archived` or
+    # `hindcast_run__calibration_run__is_archived`. Since these are nested
+    # attribute paths rather than direct attributes on `run`, we use
+    # `get_nested_attr()` to walk each path safely.
+    is_archived = any(get_nested_attr(run, field, False) for field in is_archived_fields)
     if is_archived and not include_archived:
         return ResponseError(
             f'{model_name} {run_id} is archived and should be unarchived before additional operations can be performed.'
@@ -91,9 +109,9 @@ def get_calibration_runs_bulk(
     CalibrationRun objects, then applies the same validation logic used by
     `get_run_instance` on a per-run basis, including:
 
-    - Optional filtering by owning user (owner_field='owner')
+    - Optional filtering by owning user
     - Validation of allowed job statuses
-    - Enforcement of archived-job access rules (is_archived_field='is_archived')
+    - Enforcement of archived-job access rules
 
     The database query itself does NOT filter out archived jobs. Instead, archive
     handling is enforced explicitly during validation so that callers can
@@ -147,7 +165,7 @@ def get_calibration_runs_bulk(
             run=run,
             run_id=run_id,
             run_status=run_status,
-            is_archived_field='is_archived',
+            is_archived_fields=('is_archived',),
             include_archived=include_archived,
             model_name=model_name,
         )
@@ -168,8 +186,8 @@ def get_run_instance(
         run_id: int,
         user: User | None,
         run_status: Sequence[StatusEnum] | None = None,
-        owner_field: str = 'owner',
-        is_archived_field: str = 'is_archived',
+        owner_fields: Sequence[str] = ('owner',),
+        is_archived_fields: Sequence[str] = ('is_archived',),
         include_archived: bool = False,
         *,
         select_related_fields: tuple[str, ...] = (),
@@ -199,12 +217,14 @@ def get_run_instance(
     :param model: The BaseRun-derived model class to query.
     :param run_id: The ID of the run to retrieve.
     :param user: The user requesting the run; if None, no filtering by owner is done.
-    :param run_status: Optional list of StatusEnum members to filter by.  Defaults to
+    :param run_status: Optional list of StatusEnum members to filter by. Defaults to
                        [READY, SAVED] if not provided.
-    :param owner_field: The field used to filter by owner (default 'owner').
-    :param is_archived_field: Name of the boolean field indicating archived state.
-                              May traverse relationships. (default 'is_archived')
-    :param include_archived: Whether to include archived jobs.  If False, archived runs will return an error response.
+    :param owner_fields: One or more field paths used to filter by owner. If multiple
+                         are provided, they are OR'ed together.
+    :param is_archived_fields: One or more attribute paths used to determine whether the
+                               associated calibration run is archived.
+    :param include_archived: Whether to include archived jobs. If False, archived runs
+                             will return an error response.
     :param select_related_fields: Optional tuple of related field names to eagerly
                                   load via select_related.
     :return: A tuple (run, error):
@@ -224,7 +244,10 @@ def get_run_instance(
         query = query.select_related(*select_related_fields)
 
     if user:
-        query = query.filter(**{owner_field: user})
+        owner_query = Q()
+        for field in owner_fields:
+            owner_query |= Q(**{field: user})
+        query = query.filter(owner_query)
 
     try:
         run = query.get()
@@ -240,7 +263,7 @@ def get_run_instance(
         run=run,
         run_id=run_id,
         run_status=effective_run_status,
-        is_archived_field=is_archived_field,
+        is_archived_fields=is_archived_fields,
         include_archived=include_archived,
         model_name=model_name,
     )
@@ -271,8 +294,8 @@ def get_calibration_run(
         calibration_run_id,
         user,
         run_status,
-        owner_field='owner',
-        is_archived_field='is_archived',
+        owner_fields=('owner',),
+        is_archived_fields=('is_archived',),
         include_archived=include_archived,
         select_related_fields=('status', 'performance_metrics', 'owner'),
     )
@@ -296,14 +319,14 @@ def get_validation_run(
         validation_run_id,
         user,
         run_status,
-        owner_field='calibration_run__owner',
-        is_archived_field='calibration_run__is_archived',
+        owner_fields=('calibration_run__owner',),
+        is_archived_fields=('calibration_run__is_archived',),
         select_related_fields=(
             'status',
             'performance_metrics',
             'calibration_run',
             'calibration_run__owner',
-        ),
+        )
     )
 
 
@@ -325,15 +348,14 @@ def get_cold_start_run(
         cold_start_run_id,
         user,
         run_status,
-        owner_field='calibration_run__owner',
-        is_archived_field='calibration_run__is_archived',
+        owner_fields=('calibration_run__owner',),
+        is_archived_fields=('calibration_run__is_archived',),
         select_related_fields=(
             'status',
             'performance_metrics',
             'calibration_run',
             'calibration_run__owner',
-        ),
-
+        )
     )
 
 
@@ -355,8 +377,8 @@ def get_forecast_run(
         forecast_run_id,
         user,
         run_status,
-        owner_field='calibration_run__owner',
-        is_archived_field='calibration_run__is_archived',
+        owner_fields=('calibration_run__owner',),
+        is_archived_fields=('calibration_run__is_archived',),
         select_related_fields=(
             'status',
             'performance_metrics',
@@ -366,7 +388,7 @@ def get_forecast_run(
             'cold_start_run',
             'cold_start_run__status',
             'cold_start_run__performance_metrics',
-        ),
+        )
     )
 
 
@@ -388,8 +410,8 @@ def get_hindcast_run(
         hindcast_run_id,
         user,
         run_status,
-        owner_field='calibration_run__owner',
-        is_archived_field='calibration_run__is_archived',
+        owner_fields=('calibration_run__owner',),
+        is_archived_fields=('calibration_run__is_archived',),
         select_related_fields=(
             'status',
             'performance_metrics',
@@ -399,14 +421,15 @@ def get_hindcast_run(
             'cold_start_run',
             'cold_start_run__status',
             'cold_start_run__performance_metrics',
-        ),
+        )
     )
 
 
 def get_verification_run(
         verification_run_id: int,
         user: User | None,
-        run_status: Sequence[StatusEnum] | None = None
+        run_status: Sequence[StatusEnum] | None = None,
+        include_archived: bool = False
 ) -> tuple[VerificationRun | None, Response | None]:
     """
     Retrieve a VerificationRun by ID, optionally filtering by owner and status.
@@ -414,6 +437,7 @@ def get_verification_run(
     :param verification_run_id: The ID of the VerificationRun.
     :param user: User requesting the VerificationRun; if None, no owner filtering.
     :param run_status: Allowed statuses for the VerificationRun.
+    :param include_archived: Include archived jobs if True.
     :return: Tuple of VerificationRun or None, and Response if error or None.
     """
     return get_run_instance(
@@ -421,8 +445,15 @@ def get_verification_run(
         verification_run_id,
         user,
         run_status,
-        owner_field='forecast_run__calibration_run__owner',
-        is_archived_field='is_archived',
+        owner_fields=(
+            'forecast_run__calibration_run__owner',
+            'hindcast_run__calibration_run__owner',
+        ),
+        is_archived_fields=(
+            'forecast_run__calibration_run__is_archived',
+            'hindcast_run__calibration_run__is_archived',
+        ),
+        include_archived=include_archived,
         select_related_fields=(
             'status',
             'performance_metrics',
@@ -432,6 +463,12 @@ def get_verification_run(
             'forecast_run__configuration',
             'forecast_run__calibration_run',
             'forecast_run__calibration_run__owner',
+            'hindcast_run',
+            'hindcast_run__status',
+            'hindcast_run__performance_metrics',
+            'hindcast_run__configuration',
+            'hindcast_run__calibration_run',
+            'hindcast_run__calibration_run__owner',
         )
     )
 
@@ -1363,3 +1400,20 @@ def readonly_transaction():
         with connection.cursor() as cursor:
             cursor.execute("SET TRANSACTION READ ONLY")
         yield
+
+
+def get_nested_attr(obj: object, attr_path: str, default: Any = None) -> Any:
+    """
+    Retrieve a nested attribute using a Django-style double-underscore path.
+
+    :param obj: The object to inspect.
+    :param attr_path: Attribute path such as 'calibration_run__is_archived'.
+    :param default: Value to return if any attribute in the path is missing.
+    :return: The resolved attribute value, or default if not found.
+    """
+    current = obj
+    for part in attr_path.split('__'):
+        current = getattr(current, part, default)
+        if current is default:
+            return default
+    return current
