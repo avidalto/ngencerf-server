@@ -362,7 +362,8 @@ def create_and_run_forecast(request: Request) -> Response:
 @handle_exceptions
 def create_and_run_hindcast(request: Request) -> Response:
     """
-    Creates and runs a new hindcast run with an optional cold start for a specified calibration run and cycle_name name.
+    Creates and runs a new hindcast run using either an existing cold start run
+    or a newly created cold start for a specified calibration run.
 
     :param request: The HTTP request object containing calibration and iteration details.
     :return: JSON response with validation run details or error information.
@@ -422,6 +423,11 @@ def create_and_run_hindcast(request: Request) -> Response:
         if error_return:
             return error_return
         assert cold_start_run is not None
+
+        if cold_start_run.calibration_run_id != calibration_run.id:
+            hindcast_errors.append(
+                f"Cold Start Job {cold_start_run.id} does not belong to Calibration Job {calibration_run.id}"
+            )
 
         cold_start_date = cold_start_run.cold_start_date
         cycle_date = cold_start_run.cycle_date
@@ -504,7 +510,8 @@ def create_and_run_hindcast(request: Request) -> Response:
         configuration,
         cycle_date,
         interval_cycle,
-        num_iterations
+        num_iterations,
+        created_new_cold_start=run_cold_start,
     )
 
     if run_cold_start:

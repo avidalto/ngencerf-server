@@ -518,7 +518,8 @@ def get_status_for_hindcast(hindcast_run: HindcastRun, include_performance_metri
         'submit_date': hindcast_run.submit_date,
         'sent_date': hindcast_run.sent_date,
         'run_start': hindcast_run.run_start,
-        'run_end': hindcast_run.run_end
+        'run_end': hindcast_run.run_end,
+        'created_new_cold_start': hindcast_run.created_new_cold_start
     }
 
     hindcast_failure_message = normalize_failure_messages(hindcast_run.failure_messages)

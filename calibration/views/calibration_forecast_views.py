@@ -235,7 +235,8 @@ def clone_and_run_hindcast_job(request: Request) -> Response:
         run.configuration,
         run.cycle_date,
         run.interval_cycle,
-        run.num_iterations
+        run.num_iterations,
+        run.created_new_cold_start
     )
     submit_job(new_hindcast_run)
 

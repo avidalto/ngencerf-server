@@ -6,6 +6,7 @@ from calibration.models.forecast_base_run import ForecastBaseRun
 class HindcastRun(ForecastBaseRun):
     calibration_run = models.ForeignKey('CalibrationRun', null=False, related_name="hindcasts_from_calibration", on_delete=models.CASCADE, db_index=True)
     cold_start_run = models.ForeignKey('ColdStartRun', null=True, related_name="hindcasts_from_cold_start", on_delete=models.CASCADE, db_index=True)
+    created_new_cold_start = models.BooleanField(default=False)
     interval_cycle = models.IntegerField(null=False)
     num_iterations = models.IntegerField(null=False)
 

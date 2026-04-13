@@ -212,7 +212,7 @@ class CalibrationOrValidationRunIdSerializer(BaseSerializer):
         return data
 
 
-class ForecastOrHindcastSerializer(BaseSerializer):
+class ForecastOrHindcastRunIdSerializer(BaseSerializer):
     forecast_run_id = serializers.IntegerField(required=False, allow_null=False, min_value=1)
     hindcast_run_id = serializers.IntegerField(required=False, allow_null=False, min_value=1)
 
@@ -1360,6 +1360,7 @@ class GetStatusForHindcastResponseSerializer(CommonStatusFieldsMixin, HindcastRu
     configuration = serializers.CharField(required=True, validators=[enum_validator(ForecastConfigEnum)])
     cycle_date = serializers.DateTimeField(required=True, allow_null=False)
     cold_start_run = GetStatusColdStartSerializer(required=False, allow_null=True)
+    created_new_cold_start = serializers.BooleanField(required=True, allow_null=False)
 
 
 class GetStatusForCalibrationResponseSerializer(GenericResponseSerializer, CommonStatusFieldsMixin):

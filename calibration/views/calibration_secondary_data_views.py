@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
-def derive_secondary_data_file_inputs(run: ValidationRun) -> dict[str, str] | None:
+def derive_secondary_data_file_inputs(run: ValidationRun) -> dict[str, str | None] | None:
     """
     Derives the common file inputs from the validation run for SWE and Soil Moisture
 

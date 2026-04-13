@@ -94,6 +94,9 @@ def start_zip_for_calibration_job(request: Request) -> Response:
     run, error_return = get_calibration_run(calibration_run_id, request.user, run_status=downloadable_statuses)
     if error_return:
         return error_return
+    assert run is not None
+
+    calibration_run = run
 
     if not settings.NGENCERF_ZIPS_S3_PATH:
         return ResponseError("NGENCERF_ZIPS_S3_PATH is undefined")
@@ -155,10 +158,10 @@ def start_zip_for_calibration_job(request: Request) -> Response:
         zip_size = None
 
         try:
-            job_data_dir = run.job_data_dir
+            job_data_dir = calibration_run.job_data_dir
 
             # Canonical download name (NO timestamp)
-            zip_base_name = f"{os.path.basename(job_data_dir)}_{run.job_name}"
+            zip_base_name = f"{os.path.basename(job_data_dir)}_{calibration_run.job_name}"
             download_name = f"{zip_base_name}.zip"
 
             # Unique on-disk filename includes timestamp to avoid collisions
@@ -228,12 +231,12 @@ def start_zip_for_calibration_job(request: Request) -> Response:
 
             duration = datetime.now(timezone.utc) - start_time
             logger.info(
-                f"Zip job completed on S3 for Calibration Job {run.id} "
+                f"Zip job completed on S3 for Calibration Job {calibration_run.id} "
                 f"in {duration.total_seconds():.2f} seconds — "
                 f"size: {zip_size / 1024 / 1024:.2f} MB"
             )
 
-        except Exception as e:
+        except Exception:
             duration = datetime.now(timezone.utc) - start_time
             size_part = (
                 f", size: {zip_size / 1024 / 1024:.2f} MB"
@@ -254,7 +257,7 @@ def start_zip_for_calibration_job(request: Request) -> Response:
             )
 
             logger.exception(
-                f"Failed to zip/upload Calibration Job {run.id} "
+                f"Failed to zip/upload Calibration Job {calibration_run.id} "
                 f"after {duration.total_seconds():.2f} seconds{size_part}: {e}"
             )
 
@@ -386,7 +389,8 @@ def cleanup_expired_zips() -> None:
     """
     raw_s3_dir = getattr(settings, "NGENCERF_ZIPS_S3_PATH", None)
     normalized_s3_dir = None
-    if raw_s3_dir:
+
+    if isinstance(raw_s3_dir, str):
         try:
             normalized_s3_dir = normalize_s3_prefix(raw_s3_dir)
         except ValueError:
@@ -428,7 +432,7 @@ def cleanup_expired_zips() -> None:
         deleted_s3 = 0
 
         s3_dir = getattr(settings, "NGENCERF_ZIPS_S3_PATH", None)
-        if s3_dir:
+        if isinstance(s3_dir, str):
             try:
                 s3_dir = normalize_s3_prefix(s3_dir)
                 deleted_s3 = delete_expired_s3_objects_under_prefix(
@@ -530,6 +534,7 @@ def get_calibration_zip_download_url(request: Request) -> Response:
     run, error_return = get_calibration_run(calibration_run_id, request.user, run_status=downloadable_statuses)
     if error_return:
         return error_return
+    assert run is not None
 
     zip_status = cache.get(zip_cache_key)
     if not zip_status:
@@ -590,6 +595,7 @@ def get_calibration_job_zip(request: Request) -> FileResponse | Response:
     calibration_run, error_return = get_calibration_run(calibration_run_id, request.user, run_status=downloadable_statuses)
     if error_return:
         return error_return
+    assert calibration_run is not None
 
     cleanup_expired_zips()  # opportunistically delete old ZIPs (lazy TTL cleanup)
 
