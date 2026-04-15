@@ -292,6 +292,7 @@ def create_and_run_forecast(request: Request) -> Response:
         cold_start_date=cold_start_date,
         cycle_date=cycle_date
     ) if run_cold_start else None
+    assert cold_start_run is not None
 
     forecast_run = create_forecast_run_internal(
         calibration_run,

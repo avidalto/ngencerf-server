@@ -195,7 +195,6 @@ class ValidationRunIdSerializer(BaseSerializer):
     validation_run_id = serializers.IntegerField(required=True, min_value=1)
 
 
-# TODO Do we still need this after we've fully implemented Forecast
 class CalibrationOrValidationRunSerializer(BaseSerializer):
     calibration_run_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     validation_run_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
@@ -208,6 +207,23 @@ class CalibrationOrValidationRunSerializer(BaseSerializer):
         if bool(calibration_run_id) == bool(validation_run_id):  # Both are specified or both are None
             raise serializers.ValidationError(
                 "You must specify either 'calibration_run_id' or 'validation_run_id', but not both."
+            )
+
+        return data
+
+
+class ForecastOrHindcastSerializer(BaseSerializer):
+    forecast_run_id = serializers.IntegerField(required=False, allow_null=False, min_value=1)
+    hindcast_run_id = serializers.IntegerField(required=False, allow_null=False, min_value=1)
+
+    def validate(self, data):
+        forecast_run_id = data.get('forecast_run_id')
+        hindcast_run_id = data.get('hindcast_run_id')
+
+        # Ensure that only one of them is specified
+        if bool(forecast_run_id) == bool(hindcast_run_id):  # Both are specified or both are None
+            raise serializers.ValidationError(
+                "You must specify either 'forecast_run_id' or 'hindcast_run_id', but not both."
             )
 
         return data
@@ -982,8 +998,7 @@ class GetPlotResponseSerializer(CalibrationRunIdSerializer):
     pagination_metadata = PaginationMetadataSerializer(required=False)
 
 
-class ForecastRunDataResponseSerializer(BaseSerializer):
-    forecast_run_id = serializers.IntegerField(required=True, min_value=1)
+class ForecastRunDataResponseSerializer(ForecastOrHindcastSerializer):
     timeseries_data = serializers.JSONField(required=True)
 
 

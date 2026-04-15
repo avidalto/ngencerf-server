@@ -135,6 +135,7 @@ urlpatterns = [
     path('calibration/clone_and_run_forecast/', calibration_forecast_views.clone_and_run_forecast_job, name="cloneAndRunForecastJob"),
     path('calibration/clone_and_run_hindcast/', calibration_forecast_views.clone_and_run_hindcast_job, name="cloneAndRunHindcastJob"),
     path('calibration/get_forecast_timeseries_data/', calibration_forecast_views.get_forecast_timeseries_data, name="getForecastTimeseriesData"),
+    path('calibration/get_hindcast_timeseries_data/', calibration_forecast_views.get_hindcast_timeseries_data, name="getHindcastTimeseriesData"),
     path('calibration/delete_forecast_job/', calibration_forecast_views.delete_forecast_job, name="deleteForecastJob"),
     path('calibration/delete_hindcast_job/', calibration_forecast_views.delete_forecast_job, name="deleteHindcastJob"),
     path('calibration/get_cold_start_jobs_for_configuration/', calibration_forecast_views.get_cold_start_jobs_for_configuration,

@@ -300,14 +300,19 @@ def get_forecast_forcing_config_file(forecast_run: ForecastRun) -> str:
     return os.path.join(get_forecast_dir(forecast_run), f'forecast_forcing_config.yaml')
 
 
-def get_cold_start_output_file(forecast_run: ForecastRun) -> str | None:
-    if not forecast_run.cold_start_run:
+def get_cold_start_output_file(run: ForecastRun | HindcastRun) -> str | None:
+    if isinstance(run, ForecastRun) and not run.cold_start_run:
         return None
-    return os.path.join(get_cold_start_output_dir(forecast_run.cold_start_run), f'{forecast_run.calibration_run.gage.gage_id}_output.csv')
+    return os.path.join(get_cold_start_output_dir(run.cold_start_run), f'{run.calibration_run.gage.gage_id}_output.csv')
 
 
 def get_forecast_output_file(forecast_run: ForecastRun) -> str:
     return os.path.join(get_forecast_output_dir(forecast_run), f'{forecast_run.calibration_run.gage.gage_id}_output.csv')
+
+
+def get_hindcast_output_file(hindcast_run: HindcastRun, iteration: int) -> str:
+    return os.path.join(get_hindcast_dir(hindcast_run), f'hindcast_{iteration}', 'Output',
+                        f'{hindcast_run.calibration_run.gage.gage_id}_output.csv')
 
 
 def get_cold_start_stdout_file(cold_start_run: ColdStartRun) -> str:
