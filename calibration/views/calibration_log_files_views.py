@@ -12,15 +12,15 @@ from calibration.models import CalibrationRun
 from calibration.util.calibration_validators import CalibrationOrValidationOrColdStartOrForecastOrHindcastOrVerificationRunSerializer, \
     GetLogNamesResponseSerializer, ErrorResponseSerializer, GetLogRequestSerializer, GetLogsResponseSerializer, GetLogStatusRequestSerializer, \
     GetLogStatusResponseSerializer
-from calibration.util.ngen_locations import get_forecast_ngen_log_dir, get_cold_start_ngen_log_dir, get_calibration_ngen_logs, \
-    get_output_validation_run_dir, get_output_calibration_run_dir, get_validation_iteration_stdout_file, get_validation_best_stdout_file, \
-    get_validation_control_stdout_file, get_ngen_log_dir, get_gage_dir, get_forecast_dir, get_cold_start_dir, get_verification_run_dir
+from calibration.util.ngen_locations import get_validation_control_stdout_file, get_validation_best_stdout_file, get_validation_iteration_stdout_file, \
+    get_forecast_ngen_stdout_file, get_forecast_ngen_log_dir, get_cold_start_ngen_stdout_file, get_cold_start_ngen_log_dir, \
+    get_verification_stdout_file, get_calibration_stdout_file, get_ngen_log_dir, get_ngen_stdout_log_filename, get_hindcast_ngen_log_dir, \
+    get_hindcast_ngen_stdout_file
 from calibration.views.calibration_evaluation_views import logger
 from calibration.views.calibration_run_views import map_path_to_host
 from calibration.views.called_from import get_caller_name
 from calibration.views.common import get_validation_run, get_forecast_run, get_verification_run, get_calibration_run, handle_exceptions, \
-    get_user_email, validate_request, validate_response, get_elapsed_str, CerfException, truncate_large_fields, \
-    find_validation_worker_with_matching_id, worker_directory_pattern
+    get_user_email, validate_request, validate_response, get_elapsed_str, CerfException, truncate_large_fields, process_worker_dirs, get_hindcast_run
 
 
 @extend_schema(
@@ -532,6 +532,26 @@ def get_allowed_logs_for_request(
 
             ngen_log_dir = get_cold_start_ngen_log_dir(cold_start_run)
             cold_start_logs.extend(get_log_files_in_directory(ngen_log_dir))
+            logs[LogCategory.COLD_START.value] = cold_start_logs
+
+    elif hindcast_run:
+        hindcast_logs = []
+        file = get_hindcast_ngen_stdout_file(hindcast_run)
+        if os.path.exists(file):
+            hindcast_logs.append(file)
+
+        ngen_log_dir = get_hindcast_ngen_log_dir(hindcast_run)
+        hindcast_logs.extend([str(p) for p in Path(ngen_log_dir).glob("*.log")])
+        logs[LogCategory.HINDCAST.value] = hindcast_logs
+
+        if cold_start_run:
+            cold_start_logs = []
+            file = get_cold_start_ngen_stdout_file(cold_start_run)
+            if os.path.exists(file):
+                cold_start_logs.append(file)
+
+            ngen_log_dir = get_cold_start_ngen_log_dir(cold_start_run)
+            cold_start_logs.extend([str(p) for p in Path(ngen_log_dir).glob("*.log")])
             logs[LogCategory.COLD_START.value] = cold_start_logs
 
     elif hindcast_run:
