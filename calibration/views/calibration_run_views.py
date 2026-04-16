@@ -578,20 +578,21 @@ def get_status_for_verification(verification_run: VerificationRun, include_perfo
     - Verification timing and status fields
     - Failure messages (if any)
     - Performance metrics (only if requested and job is DONE or FAILED)
-    - A summarized view of the associated ForecastRun
+    - A summarized view of the associated ForecastRun or HindcastRun
 
     All database access is read-only and executed inside a readonly transaction.
 
     :param verification_run: The VerificationRun instance to inspect.
     :param include_performance_metrics: Whether to include performance metrics
         when the run status allows it.
-    :return: A dict suitable for GetStatusForVerificationResponseSerializer.
+    :return: A dict suitable for the verification status response serializer.
     """
+    parent_run = verification_run.parent_run
 
     verification_data = {
         'message': f'{get_job_description(verification_run)}, status is {verification_run.status.name}',
         'verification_run_id': verification_run.id,
-        'calibration_run_id': verification_run.forecast_run.calibration_run_id,
+        'calibration_run_id': parent_run.calibration_run_id,
         'status': verification_run.status.name,
         'submit_date': verification_run.submit_date,
         'sent_date': verification_run.sent_date,
@@ -614,35 +615,42 @@ def get_status_for_verification(verification_run: VerificationRun, include_perfo
     if verification_metrics:
         verification_data['performance_metrics'] = verification_metrics
 
-    # Get the forecast run, which should always be there
-    forecast_run = verification_run.forecast_run
-    forecast_data = {
-        'forecast_run_id': forecast_run.id,
-        'status': forecast_run.status.name,
-        'configuration': forecast_run.configuration.name,
-        'cycle_date': forecast_run.cycle_date,
-        'submit_date': forecast_run.submit_date,
-        'sent_date': forecast_run.sent_date,
-        'run_start': forecast_run.run_start,
-        'run_end': forecast_run.run_end,
+    parent_data = {
+        'calibration_run_id': parent_run.calibration_run_id,
+        'status': parent_run.status.name,
+        'configuration': parent_run.configuration.name,
+        'cycle_date': parent_run.cycle_date,
+        'submit_date': parent_run.submit_date,
+        'sent_date': parent_run.sent_date,
+        'run_start': parent_run.run_start,
+        'run_end': parent_run.run_end,
     }
 
-    forecast_failure_message = normalize_failure_messages(forecast_run.failure_messages)
-    if forecast_failure_message:
-        forecast_data['failure_messages'] = forecast_failure_message
+    if verification_run.forecast_run_id is not None:
+        parent_data['forecast_run_id'] = parent_run.id
+    else:
+        parent_data['hindcast_run_id'] = parent_run.id
+        parent_data['created_new_cold_start'] = parent_run.created_new_cold_start
 
-    if forecast_run.run_end and forecast_run.submit_date:
-        forecast_data['elapsed_time'] = forecast_run.run_end - forecast_run.submit_date
+    parent_failure_message = normalize_failure_messages(parent_run.failure_messages)
+    if parent_failure_message:
+        parent_data['failure_messages'] = parent_failure_message
 
-    forecast_metrics = (
-        get_performance_metrics(forecast_run.performance_metrics)
-        if should_include_metrics(forecast_run.status, include_performance_metrics)
+    if parent_run.run_end and parent_run.submit_date:
+        parent_data['elapsed_time'] = parent_run.run_end - parent_run.submit_date
+
+    parent_metrics = (
+        get_performance_metrics(parent_run.performance_metrics)
+        if should_include_metrics(parent_run.status, include_performance_metrics)
         else None
     )
-    if forecast_metrics:
-        forecast_data['performance_metrics'] = forecast_metrics
+    if parent_metrics:
+        parent_data['performance_metrics'] = parent_metrics
 
-    verification_data['forecast_run'] = forecast_data
+    if verification_run.forecast_run_id is not None:
+        verification_data['forecast_run'] = parent_data
+    else:
+        verification_data['hindcast_run'] = parent_data
 
     return verification_data
 
