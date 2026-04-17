@@ -296,6 +296,10 @@ def get_forecast_output_dir(forecast_run: ForecastRun) -> str:
     return os.path.join(get_forecast_dir(forecast_run), 'Output')
 
 
+def get_hindcast_output_dir(hindcast_run: HindcastRun) -> str:
+    return os.path.join(get_hindcast_dir(hindcast_run), 'Output')
+
+
 def get_forecast_forcing_config_file(forecast_run: ForecastRun) -> str:
     return os.path.join(get_forecast_dir(forecast_run), f'forecast_forcing_config.yaml')
 
@@ -337,10 +341,6 @@ def get_forecast_stdout_file(forecast_run: ForecastRun) -> str:
 
 def get_hindcast_stdout_file(hindcast_run: HindcastRun) -> str:
     return os.path.join(get_hindcast_dir(hindcast_run), f'hindcast_{hindcast_run.id}_stdout.log')
-
-
-def get_hindcast_ngen_stdout_file(hindcast_run: HindcastRun) -> str:
-    return os.path.join(get_hindcast_dir(hindcast_run), 'ngen_stdout_stderr.log')
 
 
 def get_hindcast_ngen_stdout_file(hindcast_run: HindcastRun) -> str:
