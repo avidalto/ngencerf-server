@@ -444,6 +444,7 @@ def export_job(request: Request) -> Response:
         run, error_return = get_calibration_run(calibration_run_id, request.user, run_status=list(StatusEnum))
         if error_return:
             return error_return
+        assert run is not None
 
         calibration_run_data, _ = load_calibration_run_data(run, export=True)
 
@@ -780,6 +781,7 @@ def load_calibration_run(request: Request) -> Response:
         run, error_return = get_calibration_run(calibration_run_id, request.user, run_status=list(StatusEnum))
         if error_return:
             return error_return
+        assert run is not None
 
         # Do all the heavy lifting in read-only mode
         calibration_run_data, time_range = load_calibration_run_data(

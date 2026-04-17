@@ -1104,7 +1104,6 @@ def archive_jobs(request: Request) -> Response:
                         f"{quarantined_path}"
                     )
 
-
             # ===============================
             # UNARCHIVE (S3 → EFS)
             # ===============================

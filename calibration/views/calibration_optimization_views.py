@@ -163,6 +163,7 @@ def save_optimization_tab(request) -> Response:
     run, error_return = get_calibration_run(calibration_run_id, request.user)
     if error_return:
         return error_return
+    assert run is not None
 
     if have_LSTM(run) and (optimization_name or objective_function_name or
                            streamflow_threshold is not None or peak_flow_threshold is not None or
@@ -220,8 +221,11 @@ def save_optimization_tab(request) -> Response:
     return Response(response_validator.data)
 
 
-def validate_optimizations(run: CalibrationRun, optimization_name: str, optimization_inputs: list[dict[str, Any]]) -> tuple[
-    Optimization | None, list[CalibrationOptimizationInput] | None, str | None]:
+def validate_optimizations(
+        run: CalibrationRun,
+        optimization_name: str,
+        optimization_inputs: list[dict[str, Any]]
+) -> tuple[Optimization | None, list[CalibrationOptimizationInput] | None, str | None]:
     """
     Validate and prepare optimization inputs for a calibration run.
 
@@ -284,8 +288,10 @@ def validate_optimizations(run: CalibrationRun, optimization_name: str, optimiza
     return optimization, prepared_inputs, None
 
 
-def validate_objective_function(run: CalibrationRun, objective_function_name: str, streamflow_threshold: float,
-                                peak_flow_threshold: float) -> str | None:
+def validate_objective_function(run: CalibrationRun,
+                                objective_function_name: str,
+                                streamflow_threshold: float | None,
+                                peak_flow_threshold: float | None) -> str | None:
     """
     Validates and assigns the objective function to a calibration run.
 

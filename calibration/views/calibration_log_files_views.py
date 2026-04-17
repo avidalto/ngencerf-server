@@ -76,6 +76,7 @@ def get_log_names(request: Request) -> Response:
     )
     if error_return:
         return error_return
+    assert logs_by_category is not None
 
     category_order = {
         LogCategory.GENERAL.value: 0,
@@ -171,6 +172,7 @@ def get_log(request: Request) -> Response:
     )
     if error_return:
         return error_return
+    assert logs is not None
 
     requested_log_name = normalize_log_path(log_name)
     allowed_logs = {
@@ -285,10 +287,11 @@ def get_log_status(request: Request) -> Response:
         forecast_run_id=forecast_run_id,
         hindcast_run_id=hindcast_run_id,
         verification_run_id=verification_run_id,
-        user=request.user,
+        user=request.user
     )
     if error_return:
         return error_return
+    assert logs is not None
 
     requested_log_name = normalize_log_path(log_name)
     allowed_logs = {

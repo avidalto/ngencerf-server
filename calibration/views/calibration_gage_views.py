@@ -205,6 +205,7 @@ def save_gage_tab(request: Request):
     run, error_return = get_calibration_run(calibration_run_id, request.user)
     if error_return:
         return error_return
+    assert run is not None
 
     run.job_name = job_name
 
