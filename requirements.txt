@@ -45,3 +45,7 @@ pandas~=2.3.3
 # ASGI server (runCerf.sh launches Gunicorn w/ Uvicorn workers)
 gunicorn~=23.0.0
 uvicorn~=0.35.0
+
+django-otp
+qrcode
+Pillow

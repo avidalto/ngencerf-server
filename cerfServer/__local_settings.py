@@ -10,7 +10,7 @@ from cerfServer.settings import LOGGING
 
 print('Loading local settings from', __name__)
 
-ALLOWED_HOSTS = ['.localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['.localhost', '127.0.0.1', '10.6.2.27']
 
 # SQL logging
 LOGGING['loggers']['django.db.backends']['level'] = 'DEBUG'
@@ -35,7 +35,8 @@ DATABASES = {
         'OPTIONS': {
             'connect_timeout': 10,
             'options': '-c statement_timeout=10000ms',
-            'sslmode': 'require',
+            #'sslmode': 'require',
+            'sslmode': os.getenv('CERF_SERVER_DATABASE_SSLMODE', 'disable'),
             # 'sslrootcert': /ngencerf/aws_cert/global-bundle.pem',
         }
     }
