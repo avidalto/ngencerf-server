@@ -1,5 +1,5 @@
-from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.db import models
 
 
 class CustomUserManager(BaseUserManager):
@@ -31,7 +31,9 @@ class CustomUser(AbstractUser):
             'unique': "A user with this email already exists."
         }
     )
-    username = models.CharField(max_length=255, blank=True, null=True)  # Make username optional
+    username = models.CharField(max_length=255, blank=True, null=True)
+
+    mfa_enabled = models.BooleanField(default=False)
 
     objects = CustomUserManager()
 
@@ -39,7 +41,7 @@ class CustomUser(AbstractUser):
         db_table = 'custom_user'
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = []   # No other fields required for superuser
+    REQUIRED_FIELDS = []  # No other fields required for superuser
 
     def save(self, *args, **kwargs):
         # Always set the username to the email value

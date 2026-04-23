@@ -22,9 +22,11 @@ DJANGO_START_TIME = datetime.now(tz=timezone.utc)
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FILE_PATH = os.path.abspath(str(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(FILE_PATH))
+THIS_DIR = os.path.dirname(FILE_PATH)
 
-dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+dotenv_path = os.path.join(THIS_DIR, '.env')
 print(f'Loading values from {dotenv_path}')
 load_dotenv(dotenv_path)
 
@@ -65,6 +67,9 @@ INSTALLED_APPS = [
     "djoser",
     "rest_framework_simplejwt",
     'corsheaders',
+    "django_otp",
+    "django_otp.plugins.otp_totp",
+    "django_otp.plugins.otp_static",
 ]
 
 # Points to which token model should be used for authentication. In case if only stateless
@@ -94,6 +99,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    "django_otp.middleware.OTPMiddleware",
     'calibration.util.middleware.LogUnmatchedCalibrationRequestsMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -106,6 +112,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:3001",
 ]
+
+MFA_ENABLED = str(os.getenv('MFA_ENABLED', 'false')).lower() == 'true'
 
 ROOT_URLCONF = 'cerfServer.urls'
 
@@ -241,7 +249,6 @@ ZIP_DOWNLOAD_URL_TTL_SECONDS = 300
 
 # How long the ZIP object is kept in S3 (and how long status is cached) before cleanup may delete it
 ZIP_RETENTION_SECONDS = 3600
-
 
 # -----------------------------
 # ngen/nwm-cal-mgr Locations
