@@ -1820,3 +1820,10 @@ class GetTimeseriesDataResponseSerializer(GenericMessageResponseSerializer):
 ##################################
 class SlurmSubmitResponseSerializer(BaseSerializer):
     slurm_job_id = serializers.IntegerField(required=False, allow_null=False)
+
+
+##################################
+# MFA
+##################################
+class MFASetupResponseSerializer(BaseSerializer):
+    otpauth_url = serializers.CharField()
