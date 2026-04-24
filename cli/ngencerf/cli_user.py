@@ -1,11 +1,15 @@
 import getpass
 import os
 
+import qrcode
 import requests
 
 from ngencerf.cli_util import check_http_error
 
-LOGIN_ENDPOINT = "http://localhost:8000/auth/jwt/create"
+LOGIN_ENDPOINT = "http://localhost:8000/auth/login/"
+MFA_SETUP_ENDPOINT = "http://localhost:8000/auth/mfa/setup/"
+MFA_CONFIRM_SETUP_ENDPOINT = "http://localhost:8000/auth/mfa/setup/confirm/"
+MFA_VERIFY_ENDPOINT = "http://localhost:8000/auth/mfa/verify/"
 REFRESH_ENDPOINT = "http://localhost:8000/auth/jwt/refresh"
 REGISTER_ENDPOINT = "http://localhost:8000/auth/users/"
 ENV_FILE = os.path.join(os.path.expanduser("~"), ".ngencerf_env")
@@ -104,9 +108,14 @@ def ngen_login() -> bool:
 def perform_full_login(_retry=False) -> bool:
     """
     Perform a full login using stored or prompted credentials.
+    Supports MFA setup and verification flows.
+
     Will re-prompt once on failure (but never loops indefinitely).
     """
     print("Performing full login with email/password.")
+
+    # Load latest env
+    load_ngencerf_env()
 
     # Always load the latest email from env if available
     email = os.environ.get("NGEN_EMAIL") or os.environ.get("NGEN_USERNAME")
@@ -141,8 +150,11 @@ def perform_full_login(_retry=False) -> bool:
         if not password:
             password = getpass.getpass("ngenCerf password: ")
 
-    # Attempt login
+    # ───────────────────────────────
+    # Step 1: Call /auth/login/
+    # ───────────────────────────────
     payload = {"email": email, "password": password}
+    print("Logging in with", email)
     response = requests.post(LOGIN_ENDPOINT, json=payload)
 
     # Handle failed login attempts
@@ -167,22 +179,135 @@ def perform_full_login(_retry=False) -> bool:
 
     # Success case
     response_json = response.json()
-    access_token = response_json.get("access")
-    refresh_token = response_json.get("refresh")
 
-    if access_token:
+    # ───────────────────────────────
+    # Case 1: MFA NOT required → tokens returned
+    # ───────────────────────────────
+    if response_json.get("access"):
+        access_token = response_json.get("access")
+        refresh_token = response_json.get("refresh")
+
         os.environ["ACCESS_TOKEN"] = access_token
         os.environ["NGEN_EMAIL"] = email
         os.environ["NGEN_PASSWORD"] = password
+
         save_credentials_to_env_file(email, password)
         save_to_env_file("ACCESS_TOKEN", access_token)
+
         if refresh_token:
             os.environ["REFRESH_TOKEN"] = refresh_token
             save_to_env_file("REFRESH_TOKEN", refresh_token)
+
         print(f"{email} login successful.\n")
         return True
 
-    print("Login succeeded, but access token missing.")
+    # ───────────────────────────────
+    # Case 2: MFA SETUP required
+    # ───────────────────────────────
+    if response_json.get("mfa_setup_required"):
+        mfa_token = response_json.get("mfa_token")
+
+        print("\nMFA setup required.")
+
+        setup_resp = requests.post(
+            MFA_SETUP_ENDPOINT,
+            json={"mfa_token": mfa_token},
+        )
+
+        if setup_resp.status_code != 200:
+            check_http_error(
+                setup_resp.status_code,
+                setup_resp.text,
+                setup_resp.headers.get("Content-Type"),
+            )
+            return False
+
+        setup_json = setup_resp.json()
+        otpauth_url = setup_json.get("otpauth_url")
+
+        print("\nOpening QR code for MFA setup...")
+
+        try:
+            img = qrcode.make(otpauth_url)
+            img.show()
+        except Exception as e:
+            print(f"Failed to open QR code window: {e}")
+            print("\nFallback: paste this into a QR generator or enter manually:")
+            print(otpauth_url)
+
+        code = input("Enter 6-digit code: ").strip()
+
+        confirm_resp = requests.post(
+            MFA_CONFIRM_SETUP_ENDPOINT,
+            json={
+                "mfa_token": mfa_token,
+                "code": code,
+            },
+        )
+
+        if confirm_resp.status_code != 200:
+            check_http_error(
+                confirm_resp.status_code,
+                confirm_resp.text,
+                confirm_resp.headers.get("Content-Type"),
+            )
+            return False
+
+        confirm_json = confirm_resp.json()
+
+        print("\nMFA setup complete. Save these recovery codes:\n")
+        for c in confirm_json.get("recovery_codes", []):
+            print(f"  {c}")
+
+        input("\nPress Enter after saving recovery codes...")
+
+        print("Restarting login to complete MFA...")
+        return perform_full_login(_retry=_retry)
+
+    # ───────────────────────────────
+    # Case 3: MFA VERIFY required
+    # ───────────────────────────────
+    if response_json.get("mfa_required"):
+        mfa_token = response_json.get("mfa_token")
+
+        code = input("Enter MFA code or recovery code: ").strip()
+
+        verify_resp = requests.post(
+            MFA_VERIFY_ENDPOINT,
+            json={
+                "mfa_token": mfa_token,
+                "code": code,
+            },
+        )
+
+        if verify_resp.status_code != 200:
+            check_http_error(
+                verify_resp.status_code,
+                verify_resp.text,
+                verify_resp.headers.get("Content-Type"),
+            )
+            return False
+
+        verify_json = verify_resp.json()
+
+        access_token = verify_json.get("access")
+        refresh_token = verify_json.get("refresh")
+
+        os.environ["ACCESS_TOKEN"] = access_token
+        os.environ["NGEN_EMAIL"] = email
+        os.environ["NGEN_PASSWORD"] = password
+
+        save_credentials_to_env_file(email, password)
+        save_to_env_file("ACCESS_TOKEN", access_token)
+
+        if refresh_token:
+            os.environ["REFRESH_TOKEN"] = refresh_token
+            save_to_env_file("REFRESH_TOKEN", refresh_token)
+
+        print(f"{email} login successful.\n")
+        return True
+
+    print("Unexpected login response.")
     return False
 
 
@@ -279,3 +404,41 @@ def ngen_register(optional_email: str = None):
     response = requests.post(REGISTER_ENDPOINT, json=payload)
     if check_http_error(response.status_code, response.text):
         print(f"User '{email}' registered successfully.")
+
+def _save_tokens(access_token: str, refresh_token: str | None, email: str, password: str) -> None:
+    os.environ["ACCESS_TOKEN"] = access_token
+    os.environ["NGEN_EMAIL"] = email
+    os.environ["NGEN_PASSWORD"] = password
+
+    save_credentials_to_env_file(email, password)
+    save_to_env_file("ACCESS_TOKEN", access_token)
+
+    if refresh_token:
+        os.environ["REFRESH_TOKEN"] = refresh_token
+        save_to_env_file("REFRESH_TOKEN", refresh_token)
+
+
+def _handle_token_response(response_json: dict, email: str, password: str) -> bool:
+    access_token = response_json.get("access")
+    refresh_token = response_json.get("refresh")
+
+    if not access_token:
+        return False
+
+    _save_tokens(access_token, refresh_token, email, password)
+    print(f"{email} login successful.\n")
+    return True
+
+
+def _prompt_mfa_code(prompt: str = "MFA code or recovery code: ") -> str:
+    return input(prompt).strip()
+
+
+def _print_recovery_codes(recovery_codes: list[str]) -> None:
+    print("\nMFA setup completed.")
+    print("Save these recovery codes now. They will not be shown again.\n")
+
+    for code in recovery_codes:
+        print(f"  {code}")
+
+    print()
