@@ -1,4 +1,4 @@
-# MFA UI Integration Guide
+# MFA Authentication – UI Integration Guide
 
 ## Endpoints
 
@@ -9,34 +9,34 @@
 
 ---
 
-## Standard error shape
+## Standard Error Format
 
-All MFA/login error responses may include:
+All errors follow this structure:
 
 ```json
 {
   "response_type": "error",
-  "error_code": "MFA_TOKEN_EXPIRED",
-  "ui_action": "RETURN_TO_LOGIN",
-  "message": "MFA token has expired. Please log in again."
+  "error_code": "SOME_CODE",
+  "ui_action": "ACTION",
+  "message": "Human readable message"
 }
 ```
 
-The UI should use `ui_action` for routing/state changes, not the message text.
+### UI Actions
 
-### UI action values
+| ui_action           | Meaning                   |
+| ------------------- | ------------------------- |
+| STAY_ON_LOGIN       | Show error on login       |
+| RETURN_TO_LOGIN     | Clear state → go to login |
+| RETRY_SETUP_CONFIRM | Stay on setup confirm     |
+| RETRY_MFA_VERIFY    | Stay on verify            |
+| RESTART_MFA_SETUP   | Restart setup flow        |
 
-| `ui_action`           | UI behavior                                   |
-| --------------------- | --------------------------------------------- |
-| `STAY_ON_LOGIN`       | Keep user on login screen                     |
-| `RETURN_TO_LOGIN`     | Clear temporary MFA state and return to login |
-| `RETRY_SETUP_CONFIRM` | Stay on MFA setup confirmation/code screen    |
-| `RETRY_MFA_VERIFY`    | Stay on MFA verification screen               |
-| `RESTART_MFA_SETUP`   | Restart MFA setup flow                        |
+**UI must rely on `ui_action`, not message text.**
 
 ---
 
-# 1. `POST /auth/login/`
+# 1. Login (`/auth/login/`)
 
 ## Request
 
@@ -47,319 +47,272 @@ The UI should use `ui_action` for routing/state changes, not the message text.
 }
 ```
 
-## Possible success responses
+## Responses
 
-### Login complete
+### A. Login Complete (MFA disabled)
 
 ```json
 {
-  "access": "<jwt access token>",
-  "refresh": "<jwt refresh token>"
+  "access": "...",
+  "refresh": "...",
+  "message": "Login successful"
 }
 ```
 
-UI action: store tokens and enter app.
+→ Store tokens → enter app
 
-### MFA setup required
+---
+
+### B. MFA Setup Required (first-time user)
 
 ```json
 {
   "mfa_setup_required": true,
-  "mfa_token": "<temporary token>",
+  "mfa_token": "...",
   "message": "MFA setup required before login."
 }
 ```
 
-UI action: show MFA setup screen. Store `mfa_token` temporarily.
+→ Store `mfa_token` → go to MFA Setup
 
-### MFA verification required
+---
+
+### C. MFA Verification Required (returning user)
 
 ```json
 {
   "mfa_required": true,
-  "mfa_token": "<temporary token>",
+  "mfa_token": "...",
   "message": "MFA verification required."
 }
 ```
 
-UI action: show MFA verification screen. Store `mfa_token` temporarily.
-
-## Possible errors
-
-```json
-{
-  "response_type": "error",
-  "error_code": "INVALID_CREDENTIALS",
-  "ui_action": "STAY_ON_LOGIN",
-  "message": "Invalid credentials"
-}
-```
-
-```json
-{
-  "response_type": "error",
-  "error_code": "USER_DISABLED",
-  "ui_action": "STAY_ON_LOGIN",
-  "message": "User account is disabled"
-}
-```
+→ Store `mfa_token` → go to MFA Verify
 
 ---
 
-# 2. `POST /auth/mfa/setup/`
-
-## Purpose
-
-Creates or resets the user’s TOTP credential and returns an `otpauth_url`.
-
-The UI should use `otpauth_url` to generate a QR code.
+# 2. MFA Setup (`/auth/mfa/setup/`)
 
 ## Request
 
 ```json
 {
-  "mfa_token": "<temporary token from /auth/login/>"
+  "mfa_token": "..."
 }
 ```
 
-## Success response
+## Response
 
 ```json
 {
-  "otpauth_url": "otpauth://totp/..."
+  "otpauth_url": "otpauth://totp/...",
+  "message": "Scan QR code to complete MFA setup."
 }
 ```
 
-UI action: show QR code and 6-digit code entry form.
+## UI Behavior
 
-## Possible errors
-
-```json
-{
-  "response_type": "error",
-  "error_code": "MFA_DISABLED",
-  "ui_action": "RETURN_TO_LOGIN",
-  "message": "MFA is not enabled."
-}
-```
-
-```json
-{
-  "response_type": "error",
-  "error_code": "MFA_TOKEN_EXPIRED",
-  "ui_action": "RETURN_TO_LOGIN",
-  "message": "MFA token has expired. Please log in again."
-}
-```
-
-```json
-{
-  "response_type": "error",
-  "error_code": "INVALID_MFA_TOKEN",
-  "ui_action": "RETURN_TO_LOGIN",
-  "message": "Invalid MFA token."
-}
-```
-
-```json
-{
-  "response_type": "error",
-  "error_code": "MFA_ALREADY_CONFIGURED",
-  "ui_action": "RETURN_TO_LOGIN",
-  "message": "MFA is already configured for this user."
-}
-```
+* Generate QR code from `otpauth_url`
+* Optionally display manual secret
+* Prompt user for 6-digit code
 
 ---
 
-# 3. `POST /auth/mfa/setup/confirm/`
-
-## Purpose
-
-Confirms the user successfully scanned/imported the TOTP credential.
-
-This does **not** return JWT tokens.
-
-After success, the UI should send the user through `/auth/login/` again.
+# 3. MFA Setup Confirm (`/auth/mfa/setup/confirm/`)
 
 ## Request
 
 ```json
 {
-  "mfa_token": "<temporary token from /auth/login/>",
+  "mfa_token": "...",
   "code": "123456"
 }
 ```
 
-## Success response
+## Response
 
 ```json
 {
-  "message": "MFA setup completed successfully."
+  "message": "MFA setup completed successfully.",
+  "recovery_codes": [
+    "abc123-def456",
+    "..."
+  ]
 }
 ```
 
-UI action: call `/auth/login/` again.
+## UI Behavior
 
-## Possible errors
+* Show recovery codes immediately
+* Provide:
 
-```json
-{
-  "response_type": "error",
-  "error_code": "MFA_DISABLED",
-  "ui_action": "RETURN_TO_LOGIN",
-  "message": "MFA is not enabled."
-}
-```
+  * **Download button (required)**
+  * Copy option
+* Warn user these are **one-time only**
 
-```json
-{
-  "response_type": "error",
-  "error_code": "MFA_TOKEN_EXPIRED",
-  "ui_action": "RETURN_TO_LOGIN",
-  "message": "MFA token has expired. Please log in again."
-}
-```
+### After success
 
-```json
-{
-  "response_type": "error",
-  "error_code": "INVALID_MFA_TOKEN",
-  "ui_action": "RETURN_TO_LOGIN",
-  "message": "Invalid MFA token."
-}
-```
-
-```json
-{
-  "response_type": "error",
-  "error_code": "MFA_SETUP_NOT_STARTED",
-  "ui_action": "RESTART_MFA_SETUP",
-  "message": "MFA setup has not been started for this user."
-}
-```
-
-```json
-{
-  "response_type": "error",
-  "error_code": "INVALID_MFA_SETUP_CODE",
-  "ui_action": "RETRY_SETUP_CONFIRM",
-  "message": "Invalid authentication code."
-}
-```
+→ Call `/auth/login/` again
+→ Expect `mfa_required=true`
 
 ---
 
-# 4. `POST /auth/mfa/verify/`
-
-## Purpose
-
-Completes login after MFA is already configured.
+# 4. MFA Verify (`/auth/mfa/verify/`)
 
 ## Request
 
 ```json
 {
-  "mfa_token": "<temporary token from /auth/login/>",
+  "mfa_token": "...",
   "code": "123456"
 }
 ```
 
-## Success response
+## Code types supported
+
+* TOTP (6-digit): `123456`
+* Recovery code: `abc123-def456`
+
+## Response
 
 ```json
 {
-  "access": "<jwt access token>",
-  "refresh": "<jwt refresh token>"
+  "access": "...",
+  "refresh": "...",
+  "message": "MFA verification successful"
 }
 ```
 
-UI action: store tokens and enter app.
+→ Store tokens → enter app
 
-## Possible errors
+---
 
-```json
-{
-  "response_type": "error",
-  "error_code": "MFA_DISABLED",
-  "ui_action": "RETURN_TO_LOGIN",
-  "message": "MFA is not enabled."
-}
+# UI Screens
+
+## 1. Login
+
 ```
-
-```json
-{
-  "response_type": "error",
-  "error_code": "MFA_TOKEN_EXPIRED",
-  "ui_action": "RETURN_TO_LOGIN",
-  "message": "MFA token has expired. Please log in again."
-}
-```
-
-```json
-{
-  "response_type": "error",
-  "error_code": "INVALID_MFA_TOKEN",
-  "ui_action": "RETURN_TO_LOGIN",
-  "message": "Invalid MFA token."
-}
-```
-
-```json
-{
-  "response_type": "error",
-  "error_code": "MFA_NOT_ENABLED_FOR_USER",
-  "ui_action": "RETURN_TO_LOGIN",
-  "message": "MFA is not enabled for this user."
-}
-```
-
-```json
-{
-  "response_type": "error",
-  "error_code": "MFA_DEVICE_MISSING",
-  "ui_action": "RETURN_TO_LOGIN",
-  "message": "MFA is enabled for this user but no confirmed MFA credential exists."
-}
-```
-
-```json
-{
-  "response_type": "error",
-  "error_code": "INVALID_MFA_CODE",
-  "ui_action": "RETRY_MFA_VERIFY",
-  "message": "Invalid or expired code"
-}
+Email
+Password
+[ Login ]
 ```
 
 ---
 
-# UI flow summary
+## 2. MFA Setup
 
-## First-time MFA setup
+```
+Scan QR Code
 
-1. Call `/auth/login/`
-2. If response has `mfa_setup_required=true`, store `mfa_token`
+[ QR IMAGE ]
+
+or manual entry
+
+Enter 6-digit code:
+[ _ _ _ _ _ _ ]
+
+[ Confirm Setup ]
+```
+
+---
+
+## 3. Recovery Codes (NEW)
+
+```
+MFA Setup Complete
+
+Save these recovery codes:
+
+abc123-def456
+...
+
+[ Download ]
+[ Copy ]
+[ Continue ]
+```
+
+---
+
+## 4. MFA Verify
+
+```
+Enter code:
+
+[ _ _ _ _ _ _ ]
+
+(or recovery code)
+
+[ Verify ]
+```
+
+---
+
+# QR Code Generation
+
+Input:
+
+```
+otpauth://totp/...
+```
+
+### Example (JS)
+
+```javascript
+import QRCode from "qrcode";
+QRCode.toCanvas(canvas, otpauthUrl);
+```
+
+---
+
+# Full Flow
+
+## First-time user
+
+1. Login
+2. `mfa_setup_required`
 3. Call `/auth/mfa/setup/`
-4. Generate QR code from `otpauth_url`
-5. User scans QR code and enters 6-digit code
+4. Show QR
+5. User enters code
 6. Call `/auth/mfa/setup/confirm/`
-7. On success, call `/auth/login/` again
-8. If response has `mfa_required=true`, call `/auth/mfa/verify/`
-9. Store JWT tokens
+7. Show recovery codes (download required)
+8. Call `/auth/login/`
+9. `mfa_required`
+10. Call `/auth/mfa/verify/`
+11. Enter app
 
-## Returning MFA user
+---
 
-1. Call `/auth/login/`
-2. If response has `mfa_required=true`, store `mfa_token`
-3. User enters 6-digit code
+## Returning user
+
+1. Login
+2. `mfa_required`
+3. Enter TOTP or recovery code
 4. Call `/auth/mfa/verify/`
-5. Store JWT tokens
+5. Enter app
 
-## MFA disabled globally
+---
 
-1. Call `/auth/login/`
-2. Server returns JWT tokens directly
+## Error Handling Summary
 
-```
-```
+* Use `ui_action` to determine navigation
+* Do not parse message text
+* Common cases:
+
+  * Expired token → RETURN_TO_LOGIN
+  * Bad code → RETRY screen
+  * Setup broken → RESTART_MFA_SETUP
+
+---
+
+## Notes
+
+* TOTP rotates every ~30 seconds
+* If expired → user enters next code
+* No countdown required
+* Recovery codes:
+
+  * One-time use
+  * Work without authenticator
+  * Must be saved by user
+
+---

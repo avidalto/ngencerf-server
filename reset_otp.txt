@@ -1,0 +1,47 @@
+-- Reset MFA for a user.
+-- This will:
+--   - disable MFA for the user
+--   - delete all stored TOTP devices (authenticator app credentials)
+--   - delete all recovery codes
+-- The user will be required to set up MFA again on next login.
+
+-- 1. Disable MFA flag on the user
+UPDATE custom_user
+SET mfa_enabled = FALSE
+WHERE email = 'peter@nextgenwaterprediction.com';
+
+-- 2. Delete TOTP devices (django-otp credentials)
+DELETE FROM otp_totp_totpdevice d
+USING custom_user u
+WHERE d.user_id = u.id
+  AND u.email = 'peter@nextgenwaterprediction.com';
+
+-- 3. Delete recovery codes
+DELETE FROM mfa_recovery_code r
+USING custom_user u
+WHERE r.user_id = u.id
+  AND u.email = 'peter@nextgenwaterprediction.com';
+
+
+-- ------------------------------------------------------------
+-- Verification (optional)
+-- ------------------------------------------------------------
+
+-- Check user MFA flag
+SELECT id, email, mfa_enabled
+FROM custom_user
+WHERE email = 'peter@nextgenwaterprediction.com';
+
+-- Check remaining TOTP devices
+SELECT *
+FROM otp_totp_totpdevice
+WHERE user_id = (
+    SELECT id FROM custom_user WHERE email = 'peter@nextgenwaterprediction.com'
+);
+
+-- Check remaining recovery codes
+SELECT *
+FROM mfa_recovery_code
+WHERE user_id = (
+    SELECT id FROM custom_user WHERE email = 'peter@nextgenwaterprediction.com'
+);

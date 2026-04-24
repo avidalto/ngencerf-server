@@ -1847,7 +1847,26 @@ class LoginRequestSerializer(BaseSerializer):
 
 class MFAVerifySerializer(BaseSerializer):
     mfa_token = serializers.CharField(required=True, allow_blank=False)
-    code = serializers.CharField(required=True, allow_blank=False, min_length=6, max_length=6)
+    code = serializers.CharField(required=True, allow_blank=False, max_length=20)
+
+    def validate_code(self, value: str) -> str:
+        value = value.strip()
+
+        # TOTP: exactly 6 digits
+        if value.isdigit() and len(value) == 6:
+            return value
+
+        # Recovery code: hex-hex format (6-6)
+        parts = value.split("-")
+        if len(parts) == 2 and all(len(p) == 6 for p in parts):
+            try:
+                int(parts[0], 16)
+                int(parts[1], 16)
+                return value.lower()
+            except ValueError:
+                pass
+
+        raise serializers.ValidationError("Invalid MFA code format.")
 
 
 class TokenPairResponseSerializer(BaseSerializer):
@@ -1863,3 +1882,7 @@ class MFASetupRequiredResponseSerializer(GenericMessageResponseSerializer):
 class MFARequiredResponseSerializer(GenericMessageResponseSerializer):
     mfa_required = serializers.BooleanField(required=True)
     mfa_token = serializers.CharField(required=True)
+
+
+class MFAConfirmSetupResponseSerializer(GenericMessageResponseSerializer):
+    recovery_codes = serializers.ListField(child=serializers.CharField(), required=True)

@@ -1,24 +1,29 @@
 import base64
 import json
 import logging
+import secrets
 from typing import cast
 from urllib.parse import quote
 
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth.hashers import make_password, check_password
 from django.core import signing
 from django.core.signing import BadSignature, SignatureExpired
+from django.db import transaction
 from django_otp.plugins.otp_totp.models import TOTPDevice
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from calibration.models import MFARecoveryCode
 from calibration.util.calibration_validators import MFASetupResponseSerializer, ErrorResponseSerializer, MFAConfirmSetupSerializer, \
-    GenericMessageResponseSerializer, LoginRequestSerializer, MFAVerifySerializer, MFARequiredResponseSerializer, MFASetupRequiredResponseSerializer, \
-    TokenPairResponseSerializer, MFASetupRequestSerializer
+    LoginRequestSerializer, MFAVerifySerializer, MFARequiredResponseSerializer, MFASetupRequiredResponseSerializer, \
+    TokenPairResponseSerializer, MFASetupRequestSerializer, MFAConfirmSetupResponseSerializer
 from calibration.views.called_from import get_caller_name
 from calibration.views.common import handle_exceptions, validate_request, validate_response, get_user_email
 
@@ -52,10 +57,6 @@ print(totp.now())"""
 
 def is_mfa_globally_enabled() -> bool:
     return settings.MFA_ENABLED
-
-
-def is_mfa_enabled_for_user(user: User) -> bool:
-    return user.mfa_enabled
 
 
 def generate_mfa_token(user_id: int) -> str:
@@ -136,6 +137,7 @@ def mfa_error_response(
     description="Begin TOTP MFA setup after password validation"
 )
 @api_view(['POST'])
+@permission_classes([AllowAny])
 @handle_exceptions
 def setup_mfa(request: Request) -> Response:
     """
@@ -215,12 +217,11 @@ def setup_mfa(request: Request) -> Response:
     )
 
     if device.confirmed:
-        return Response(
-            {
-                "response_type": "error",
-                "message": "MFA is already configured for this user.",
-            },
-            status=status.HTTP_400_BAD_REQUEST,
+        return mfa_error_response(
+            error_code="MFA_ALREADY_CONFIGURED",
+            ui_action=UI_ACTION_RETURN_TO_LOGIN,
+            message="MFA is already configured for this user.",
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
     # If an unconfirmed device/credential already existed, delete it and recreate it.
@@ -279,7 +280,7 @@ def setup_mfa(request: Request) -> Response:
 @extend_schema(
     request=MFAConfirmSetupSerializer,
     responses={
-        200: GenericMessageResponseSerializer,
+        200: MFAConfirmSetupResponseSerializer,
         400: OpenApiResponse(
             response=ErrorResponseSerializer,
             description="Validation error, invalid MFA token, or invalid MFA code"
@@ -296,6 +297,7 @@ def setup_mfa(request: Request) -> Response:
     description="Confirm TOTP MFA setup after password validation"
 )
 @api_view(['POST'])
+@permission_classes([AllowAny])
 @handle_exceptions
 def confirm_setup_mfa(request: Request) -> Response:
     """
@@ -388,11 +390,14 @@ def confirm_setup_mfa(request: Request) -> Response:
     user.mfa_enabled = True
     user.save(update_fields=["mfa_enabled"])
 
+    recovery_codes = replace_recovery_codes_for_user(user)
+
     response = {
         "message": "MFA setup completed successfully.",
+        "recovery_codes": recovery_codes,
     }
 
-    response_validator, error_response = validate_response(GenericMessageResponseSerializer, response)
+    response_validator, error_response = validate_response(MFAConfirmSetupResponseSerializer, response)
     if error_response:
         return error_response
 
@@ -426,6 +431,7 @@ def confirm_setup_mfa(request: Request) -> Response:
     description="Authenticate a user and determine the next MFA step"
 )
 @api_view(["POST"])
+@permission_classes([AllowAny])
 @handle_exceptions
 def login(request: Request) -> Response:
     data = request.data
@@ -524,6 +530,7 @@ def login(request: Request) -> Response:
     description="Verify MFA code and complete login"
 )
 @api_view(["POST"])
+@permission_classes([AllowAny])
 @handle_exceptions
 def verify_mfa(request: Request) -> Response:
     data = request.data
@@ -597,12 +604,15 @@ def verify_mfa(request: Request) -> Response:
 
     # tolerance was already stored on the device during MFA setup confirmation.
     if not device.verify_token(code):
-        return mfa_error_response(
-            error_code="INVALID_MFA_CODE",
-            ui_action=UI_ACTION_RETRY_MFA_VERIFY,
-            message="Invalid or expired code",
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
+        if not verify_recovery_code(user, code):
+            return mfa_error_response(
+                error_code="INVALID_MFA_CODE",
+                ui_action=UI_ACTION_RETRY_MFA_VERIFY,
+                message="Invalid or expired code",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        logger.info(f'{get_caller_name()}() recovery code used for MFA verify user: {user.email}')
 
     refresh = RefreshToken.for_user(user)
     response = {
@@ -620,3 +630,56 @@ def verify_mfa(request: Request) -> Response:
     )
 
     return Response(response_validator.data)
+
+
+def generate_recovery_codes(num_codes: int = 10) -> list[str]:
+    """
+    Generate one-time MFA recovery codes.
+
+    These are shown to the user once and stored only as hashes.
+    """
+    return [
+        f"{secrets.token_hex(3)}-{secrets.token_hex(3)}"
+        for _ in range(num_codes)
+    ]
+
+
+def replace_recovery_codes_for_user(user: User) -> list[str]:
+    """
+    Replace all existing recovery codes for a user and return the plaintext
+    codes so the UI can show them once.
+    """
+    recovery_codes = generate_recovery_codes()
+
+    MFARecoveryCode.objects.filter(user=user).delete()
+
+    MFARecoveryCode.objects.bulk_create([
+        MFARecoveryCode(
+            user=user,
+            code_hash=make_password(code),
+            used=False,
+        )
+        for code in recovery_codes
+    ])
+
+    return recovery_codes
+
+
+def verify_recovery_code(user: User, code: str) -> bool:
+    """
+    Verify and consume a one-time MFA recovery code.
+    """
+    with transaction.atomic():
+        recovery_codes = (
+            MFARecoveryCode.objects
+            .select_for_update()
+            .filter(user=user, used=False)
+        )
+
+        for recovery_code in recovery_codes:
+            if check_password(code, recovery_code.code_hash):
+                recovery_code.used = True
+                recovery_code.save(update_fields=["used"])
+                return True
+
+    return False

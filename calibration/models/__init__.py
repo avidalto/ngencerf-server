@@ -18,6 +18,7 @@ from .iteration_metric import IterationMetric
 from .iteration_parameter import IterationParameter
 from .iteration_result import IterationResult
 from .metric import Metric
+from .mfa_recovery_code import MFARecoveryCode
 from .module import Module
 from .module_group import ModuleGroup
 from .module_property import ModuleProperty
