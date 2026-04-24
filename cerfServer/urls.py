@@ -14,12 +14,29 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.urls import path, include, re_path
 from django.contrib import admin
+from django.http import Http404
+from django.urls import path, include, re_path
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+
+
+@api_view(["GET", "POST"])
+@permission_classes([AllowAny])
+def jwt_create_disabled(_request):
+    raise Http404
+
 
 urlpatterns = [
-    path('', include("calibration.urls")),
-    path('admin/', admin.site.urls),
-    re_path(r"^auth/", include("djoser.urls")),
-    re_path(r"^auth/", include("djoser.urls.jwt")),
+    path("admin/", admin.site.urls),
+
+    # Block /auth/jwt/create, /auth/jwt/create/, and accidental prefix matches.
+    # Must be before djoser.urls.jwt.
+    re_path(r"^auth/jwt/create.*$", jwt_create_disabled),
+
+    path("auth/", include("djoser.urls")),
+    path("auth/", include("djoser.urls.jwt")),
+
+    # Keep this after auth routes.
+    path("", include("calibration.urls")),
 ]

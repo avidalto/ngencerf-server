@@ -167,6 +167,9 @@ urlpatterns = [
     # MFA
     ##################################
     path("auth/mfa/setup/", calibration_mfa_views.setup_mfa, name="setupMfa"),
+    path("auth/mfa/setup/confirm/", calibration_mfa_views.confirm_setup_mfa, name="confirmSetupMfa"),
+    path("auth/mfa/verify/", calibration_mfa_views.verify_mfa, name="verifyMfa"),
+    path("auth/login/", calibration_mfa_views.login, name="login"),
 
     ##################################
     # Swagger - drf_spectacular
