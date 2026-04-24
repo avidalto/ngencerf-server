@@ -1,8 +1,10 @@
 import base64
 import json
 import logging
+from typing import cast
 from urllib.parse import quote
 
+from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.core import signing
 from django.core.signing import BadSignature, SignatureExpired
@@ -14,7 +16,6 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from calibration.auth_mfa.policy import is_mfa_globally_enabled
 from calibration.util.calibration_validators import MFASetupResponseSerializer, ErrorResponseSerializer, MFAConfirmSetupSerializer, \
     GenericMessageResponseSerializer, LoginRequestSerializer, MFAVerifySerializer, MFARequiredResponseSerializer, MFASetupRequiredResponseSerializer, \
     TokenPairResponseSerializer, MFASetupRequestSerializer
@@ -47,6 +48,14 @@ import pyotp
 secret = "CG54RTPML3FNO76WD5TS4XTRR57LRFGA"  # extract from URL
 totp = pyotp.TOTP(secret)
 print(totp.now())"""
+
+
+def is_mfa_globally_enabled() -> bool:
+    return settings.MFA_ENABLED
+
+
+def is_mfa_enabled_for_user(user: User) -> bool:
+    return user.mfa_enabled
 
 
 def generate_mfa_token(user_id: int) -> str:
@@ -105,6 +114,7 @@ def mfa_error_response(
         },
         status=status_code,
     )
+
 
 @extend_schema(
     request=MFASetupRequestSerializer,
@@ -437,6 +447,7 @@ def login(request: Request) -> Response:
             message="Invalid credentials",
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
+    user = cast(User, user)
 
     if not user.is_active:
         return mfa_error_response(
