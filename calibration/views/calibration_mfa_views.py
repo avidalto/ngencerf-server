@@ -143,14 +143,14 @@ def setup_mfa(request: Request) -> Response:
     """
     Begin TOTP MFA setup after the password step has already succeeded.
 
-    This endpoint:
-    - requires a valid short-lived MFA token from /auth/login/
-    - returns 404 if MFA is globally disabled
-    - creates a new TOTP setup secret, or resets an unfinished one
-    - returns the otpauth URL for QR enrollment
+    Behavior:
+    - Requires a valid short-lived MFA token from /auth/login/
+    - Returns 404 if MFA is globally disabled
+    - If user.mfa_enabled is True → rejects setup (already configured)
+    - If user.mfa_enabled is False → resets any stale credentials and starts fresh
+    - Returns otpauth URL for QR enrollment
 
-    It does NOT mark MFA as enabled for the user.
-    That only happens after setup is confirmed with a valid TOTP code.
+    Does NOT mark MFA as enabled. That happens in confirm step.
     """
     data = request.data
     logger.debug(f'{get_caller_name()}() request from {get_user_email(request)} - {data}')
@@ -201,22 +201,8 @@ def setup_mfa(request: Request) -> Response:
 
     logger.debug(f'{get_caller_name()}() resolved MFA setup user: {user.email}')
 
-    # Get the user's default TOTP device/credential if it already exists.
-    # Otherwise create a new unconfirmed device/credential.
-    #
-    # IMPORTANT:
-    # - "device" here is NOT a physical phone or authenticator app
-    # - it is a server-side credential (shared secret + config)
-    #
-    # confirmed=False means the user has NOT yet proven that their authenticator
-    # app is correctly configured. That confirmation will happen in the next endpoint.
-    device, created = TOTPDevice.objects.get_or_create(
-        user=user,
-        name="default",
-        defaults={"confirmed": False},
-    )
-
-    if device.confirmed:
+    # If user has already completed mfs setup, then leave everything alone
+    if user.mfa_enabled:
         return mfa_error_response(
             error_code="MFA_ALREADY_CONFIGURED",
             ui_action=UI_ACTION_RETURN_TO_LOGIN,
@@ -224,21 +210,16 @@ def setup_mfa(request: Request) -> Response:
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    # If an unconfirmed device/credential already existed, delete it and recreate it.
-    #
-    # Why:
-    # - The user may have started setup earlier and never finished
-    # - Recreating the device/credential guarantees a fresh secret each time setup is restarted
-    # - That avoids reusing an old stale QR code / secret indefinitely
-    #
-    # If the device/credential was just created above, there is nothing to reset.
-    if not created:
-        device.delete()
-        device = TOTPDevice.objects.create(
-            user=user,
-            name="default",
-            confirmed=False,
-        )
+    # If user.mfa_enabled is False, treat this as a fresh setup.
+    # Any existing unconfirmed/stale devices or recovery codes are ignored and replaced.
+    TOTPDevice.objects.filter(user=user, name="default").delete()
+    MFARecoveryCode.objects.filter(user=user).delete()
+
+    device = TOTPDevice.objects.create(
+        user=user,
+        name="default",
+        confirmed=False,
+    )
 
     # config_url is the provisioning URI in otpauth:// format.
     # Authenticator apps such as Google Authenticator can scan a QR code
