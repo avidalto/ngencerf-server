@@ -16,7 +16,7 @@ from rest_framework.response import Response
 
 from calibration.enums import StatusEnum, PlotDefinitionsEnum, ValidationType, ValidationMetricPeriod, GetValidationJobsScope
 from calibration.enums_vanilla import JobType
-from calibration.models import CalibrationRun, ValidationRun, ForecastRun, ValidationMetrics, NWMRetrospectiveMetrics
+from calibration.models import CalibrationRun, ValidationRun, ValidationMetrics, NWMRetrospectiveMetrics
 from calibration.util.caching import get_filtered_plot_definitions
 from calibration.util.calibration_validators import EmptySerializer, GetPlotNamesResponseSerializer, \
     GetPlotNamesForComparisonResponseSerializer, ErrorResponseSerializer, GetPlotRequestSerializer, \
@@ -25,7 +25,7 @@ from calibration.util.calibration_validators import EmptySerializer, GetPlotName
 from calibration.util.ngen_locations import get_output_calibration_run_dir, get_output_validation_plot_dir, get_output_iteration_file, \
     get_output_last_iteration_file, get_output_best_iteration_file, get_observational_file_for_job, get_cost_hist_file, \
     NWM_RETROSPECTIVE_DIR, get_output_valid_control_file, get_output_valid_best_file, get_output_validation_iteration_plot_dir, \
-    get_output_valid_iteration_file, get_forecast_output_dir, get_precipitation_timeseries_data_filepath
+    get_output_valid_iteration_file, get_precipitation_timeseries_data_filepath
 from calibration.views.calibration_evaluation_views import get_iterations_for_calibration_job
 from calibration.views.called_from import get_caller_name
 from calibration.views.common import get_calibration_run, handle_exceptions, validate_response, validate_request, CerfException, \
@@ -203,11 +203,15 @@ def get_plot_names_for_comparison(request: Request) -> Response:
 @handle_exceptions
 def get_plot(request: Request) -> Response:
     """
-    Retrieves a specific plot for a calibration run, validation run, or forecast run, returning the plot file location and optional data with pagination support.
+    Retrieves a specific plot for a calibration run or validation run, returning
+    the plot file location and optional data with pagination support.
 
-    If a calibration_run_id is given, then we can retrieve plots for the calibration run or the validation best run.
-    If a validation_run_id is given, then we can retrieve plots for that specific validation run as well as the calibration run.
-    
+    If a calibration_run_id is given, plots can be retrieved for the calibration
+    run or validation-output artifacts associated with that calibration run.
+
+    If a validation_run_id is given, plots can be retrieved for that specific
+    validation run as well as its associated calibration run.
+
     :param request: The request containing plot name and options.
     :return: A JSON response with plot details, or an error if the plot is not found.
     :raises ResponseError: If the plot cannot be found or an error occurs.
@@ -324,8 +328,6 @@ def get_plot(request: Request) -> Response:
 
     if validation_run_id:
         response['validation_run_id'] = validation_run_id
-    # if forecast_run_id:
-    #     response['forecast_run_id'] = forecast_run_id
     if include_data:
         response['plot_data'] = plot_data
         if pagination_metadata:
@@ -540,24 +542,19 @@ def get_plots_for_comparison(request: Request) -> Response:
     return Response(response_validator.data)
 
 
-def determine_plot_location(run: CalibrationRun | ValidationRun | ForecastRun, plot_definition: dict[str, Any]) -> str:
+def determine_plot_location(run: CalibrationRun | ValidationRun, plot_definition: dict[str, Any]) -> str:
     """
-    Determines the file location of the plot based on the plot definition's attributes.
+    Determines the file location of the plot based on the plot definition.
 
-    :param run: The run object, which could be either a calibration, validation, or forecast run.
-    :param plot_definition: Dictionary containing the plot's attributes, such as its location type.
+    :param run: The run object, either a calibration or validation run.
+    :param plot_definition: Dictionary containing plot attributes such as location.
     :return: The file path where the plot is expected to be located.
-    :raises CerfException: If the plot's location type is unknown, the required directory cannot be found,
-                           or an invalid run type is provided for a specific plot type.
+    :raises CerfException: If the plot location is unknown or invalid for the run type.
     """
     calibration_run = run if isinstance(run, CalibrationRun) else run.calibration_run
     match plot_definition['location']:
         case 'plot_valid':
-            # Ensure that 'plot_valid' is not used for a ForecastRun
-            if isinstance(run, ForecastRun):
-                raise CerfException("Plot type is not valid for ForecastRun.")
-
-            # Validation plots can be retrieved with either a CalibrationRun or a non-VALID_ITERATION ValidationRun
+            # Validation plots can be retrieved using either a CalibrationRun or a non-VALID_ITERATION ValidationRun
             if isinstance(run, CalibrationRun) or run.validation_type != ValidationType.VALID_ITERATION.value:
                 return get_output_validation_plot_dir(calibration_run)
             return get_output_validation_iteration_plot_dir(
@@ -571,11 +568,6 @@ def determine_plot_location(run: CalibrationRun | ValidationRun | ForecastRun, p
             # TODO Need to return the worker name
             worker_dir = find_worker_with_non_empty_plot_iteration(calibration_run)
             return os.path.join(worker_dir, 'Plot_Iteration')
-
-        case 'forecast_output':
-            if not isinstance(run, ForecastRun):
-                raise CerfException('A ForecastRun id is required for forecast plots')
-            return get_forecast_output_dir(run)
 
         case _:
             raise CerfException(f"Unknown location '{plot_definition['location']}' in PlotDefinitions")
@@ -682,11 +674,11 @@ def get_plot_data(run: CalibrationRun | ValidationRun, plot_definition: dict[str
 
         case PlotDefinitionsEnum.COST_HISTORY:
             # Read cost history data from a file and paginate the result
-            forecast_output = get_cost_hist_file(calibration_run)
-            if not os.path.exists(forecast_output):
-                logger.error(f"File not found: {forecast_output}")
-                raise FileNotFoundError(f"File not found: {forecast_output}")
-            data, total_count = count_and_read_file_in_chunks(forecast_output, start, limit)
+            cost_history_file = get_cost_hist_file(calibration_run)
+            if not os.path.exists(cost_history_file):
+                logger.error(f"File not found: {cost_history_file}")
+                raise FileNotFoundError(f"File not found: {cost_history_file}")
+            data, total_count = count_and_read_file_in_chunks(cost_history_file, start, limit)
 
             return {'data': data, 'total_count': total_count}
 
@@ -1111,11 +1103,11 @@ def get_worker_name_from_directory(worker_dir: str) -> str:
     return match.group(1)
 
 
-def plot_exists(run: CalibrationRun | ValidationRun | ForecastRun, plot_definition: dict[str, Any]) -> str | None:
+def plot_exists(run: CalibrationRun | ValidationRun, plot_definition: dict[str, Any]) -> str | None:
     """
     Determines whether the plot file exists. Returns the full path if it exists, else None.
 
-    :param run: The job instance (CalibrationRun, ValidationRun, or ForecastRun).
+    :param run: The job instance (CalibrationRun or ValidationRun).
     :param plot_definition: Dictionary containing the plot definition, including filename_mask and location.
     :return: Full path to the plot file if it exists, otherwise None.
     """
